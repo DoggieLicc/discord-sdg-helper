@@ -9,8 +9,9 @@ from dotenv import load_dotenv
 from discord import app_commands
 
 import utils.classes
-from utils import DiscordClient
-from utils import get_guild_info
+
+from utils import DiscordClient, Role, Faction, Subalignment
+from utils import get_guild_info, get_rolelist, generate_rolelist_roles
 
 load_dotenv()
 
@@ -203,6 +204,8 @@ async def add_archived_threads(forum_channel: discord.ForumChannel):
 async def sync_all():
     for guild in client.guilds:
         await sync_guild(guild)
+
+    print('ALL GUILDS SYNCED!')
 
 
 @client.event
@@ -772,6 +775,22 @@ async def syncall(
 async def dev_eval(interaction: discord.Interaction):
     """Dev only"""
     await interaction.response.send_modal(utils.DevEval())
+
+
+@client.tree.context_menu(name='Generate Rolelist Roles')
+@app_commands.guild_only()
+async def generate_rolelist(
+        interaction: discord.Interaction,
+        message: discord.Message
+):
+    """Generate rolelist roles"""
+    rolelist_info = get_rolelist(message.content)
+    guild_info = get_guild_info(interaction)
+    roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
+
+    roles_str = '\n'.join(f'<#{r.id}>' for r in roles)
+
+    await interaction.response.send_message(roles_str)
 
 if __name__ == '__main__':
     client.tree.add_command(faction_cmds)
