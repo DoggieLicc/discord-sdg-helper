@@ -533,10 +533,12 @@ async def get_role(interaction: discord.Interaction, role: app_commands.Transfor
     thread_channel = interaction.guild.get_channel_or_thread(role.id)
     starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
     role_str = starter_message.content
+    message_image = starter_message.attachments[0] if starter_message.attachments else None
 
     embed = utils.create_embed(
         interaction.user,
         title=f'{role.name}',
+        thumbnail=message_image,
         description=f'Post: {thread_channel.mention}\n\n'
                     f'{role_str[:4000]}'
     )
@@ -723,10 +725,12 @@ async def infotag_view(
     info_cat_channel = interaction.guild.get_channel_or_thread(info_category.id)
     info_tag_thread = info_cat_channel.get_thread(info_tag.id)
     info_tag_msg = info_tag_thread.starter_message or await info_tag_thread.fetch_message(info_tag_thread.id)
+    message_image = info_tag_msg.attachments[0] if info_tag_msg.attachments else None
 
     embed = utils.create_embed(
         interaction.user,
         title=f'Infotag {info_category.name}:{info_tag.name}',
+        thumbnail=message_image,
         description=f'{info_tag_thread.mention}\n\n' + info_tag_msg.content
     )
 
