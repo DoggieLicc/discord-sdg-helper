@@ -309,7 +309,7 @@ class InfoTagTransformer(ChoiceTransformer):
         info_cat_id = interaction.data['options'][0]['options'][0]['value']
 
         if not info_cat_id or not info_cat_id.isnumeric():
-            return [app_commands.Choice(name='Select valid info category first!', value=0)]
+            return [app_commands.Choice(name='Select valid info category first!', value='0')]
 
         info_cat_id = int(info_cat_id)
 
