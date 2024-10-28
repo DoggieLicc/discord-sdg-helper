@@ -33,10 +33,15 @@ client = DiscordClient(intents=intents, test_guild=MY_GUILD)
 faction_cmds = app_commands.Group(name='faction', description='Commands to manage and view factions')
 subalignment_cmds = app_commands.Group(name='subalignment', description='Commands to manage and view subalignments')
 infotag_cmds = app_commands.Group(name='infotag', description='Commands to manage and view infotags')
+random_cmds = app_commands.Group(name='random', description='Randomization commands')
 
 faction_cmds.guild_only = True
 subalignment_cmds.guild_only = True
 infotag_cmds.guild_only = True
+random_cmds.guild_only = True
+
+
+client.allowed_mentions = discord.AllowedMentions(users=True, replied_user=True, everyone=False, roles=False)
 
 
 def mod_check(interaction: discord.Interaction) -> bool:
@@ -618,6 +623,75 @@ async def random_roles(
     await interaction.response.send_message(embed=embed)
 
 
+@random_cmds.command(name='faction')
+@app_commands.describe(amount='Amount of factions to generate, defaults to 1')
+@app_commands.describe(individuality='Whether to generate unique factions, defaults to false')
+async def random_faction(
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 100] = 1,
+        individuality: bool = False,
+):
+    """Generate random factions"""
+    guild_info = get_guild_info(interaction)
+
+    valid_factions = copy.deepcopy(guild_info.factions)
+    len_valid_factions = len(valid_factions)
+    chosen_factions = []
+    for _ in range(amount):
+        if len(valid_factions) <= 0:
+            raise app_commands.AppCommandError('Not enough valid factions')
+
+        chosen_faction = random.choice(valid_factions)
+        chosen_factions.append(chosen_faction)
+        if individuality:
+            valid_factions.remove(chosen_faction)
+
+    chosen_factions_str = '\n'.join([f'<#{r.id}>' for r in chosen_factions])
+
+    embed = utils.create_embed(
+        interaction.user,
+        title=f'Generated {len(chosen_factions)} factions out of {len_valid_factions} possible factions!',
+        description=chosen_factions_str
+    )
+
+    await interaction.response.send_message(embed=embed)
+
+
+@random_cmds.command(name='members')
+@app_commands.describe(amount='Amount of members to generate, defaults to 1')
+@app_commands.describe(individuality='Whether to generate unique members, defaults to true')
+@app_commands.describe(role='Only get members from this role')
+async def random_members(
+        interaction: discord.Interaction,
+        amount: app_commands.Range[int, 1, 100] = 1,
+        individuality: bool = True,
+        role: discord.Role | None = None
+):
+    """Get random server members!"""
+    valid_members = role.members if role else interaction.guild.members
+    len_valid_members = len(valid_members)
+    chosen_members = []
+    for _ in range(amount):
+        if len(valid_members) <= 0:
+            raise app_commands.AppCommandError('Not enough valid members')
+
+        chosen_member = random.choice(valid_members)
+        chosen_members.append(chosen_member)
+        if individuality:
+            valid_members.remove(chosen_member)
+
+    chosen_members_str = '\n'.join([m.mention for m in chosen_members])
+
+    embed = utils.create_embed(
+        interaction.user,
+        title=f'Generated {len(chosen_members)} members out of {len_valid_members} possible members!',
+        description=chosen_members_str
+    )
+
+    await interaction.response.send_message(embed=embed)
+
+
+
 @client.tree.context_menu(name='Generate Threads With Mentions')
 @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
 @app_commands.checks.bot_has_permissions(manage_threads=True, create_private_threads=True)
@@ -857,5 +931,6 @@ if __name__ == '__main__':
     client.tree.add_command(faction_cmds)
     client.tree.add_command(subalignment_cmds)
     client.tree.add_command(infotag_cmds)
+    client.tree.add_command(random_cmds)
 
     client.run(DISCORD_TOKEN)
