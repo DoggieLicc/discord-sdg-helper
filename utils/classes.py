@@ -1,5 +1,6 @@
 import io
 import textwrap
+from collections import Counter
 from contextlib import redirect_stdout
 from typing import Any, Optional, List, Union
 
@@ -461,3 +462,72 @@ class DevEval(discord.ui.Modal, title='Dev Eval'):
         if isinstance(ret, discord.File):
             await interaction.response.send_message('Eval code executed:', files=[ret])
 
+
+class PollSelect(discord.ui.Select):
+    def __init__(self, thread: discord.Thread, included_roles, excluded_roles, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.selected_options: dict[int, str] = {}
+        self.included_roles: list[discord.Role] = included_roles
+        self.excluded_roles: list[discord.Role] = excluded_roles
+        self.thread = thread
+
+    async def callback(self, interaction: discord.Interaction):
+        valid_user = not self.included_roles
+
+        if self.included_roles:
+            for role in self.included_roles:
+                if interaction.user in role.members:
+                    valid_user = True
+                    continue
+
+        if self.excluded_roles:
+            for role in self.excluded_roles:
+                if interaction.user in role.members:
+                    await interaction.response.send_message('You are in the excluded roles list!', ephemeral=True)
+                    return
+
+        if not valid_user:
+            await interaction.response.send_message('You aren\'t in the included roles list', ephemeral=True)
+            return
+
+        await self.thread.send(f'{interaction.user} selected {self.values[0]}')
+
+        self.selected_options[interaction.user.id] = self.values[0]
+        await interaction.response.defer()
+
+
+class PollSelectButton(discord.ui.Button):
+    def __init__(self, allowed_user: discord.Member,*args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allowed_user = allowed_user
+        self.style = discord.ButtonStyle.danger
+        self.label = 'Stop poll'
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        if interaction.user == self.allowed_user:
+            self.disabled = True
+            self.view.children[0].disabled = True
+            thread = self.view.children[0].thread
+            selected_options = self.view.children[0].selected_options
+
+            counts = Counter(selected_options.values())
+            counts_msg = '\n'.join(f'**"{discord.utils.escape_markdown(c[0])}"** got {c[1]} votes!' for c in
+                          counts.most_common())
+
+            selected_msg = '\n'.join(f'<@{k}> voted {v}' for k, v in selected_options.items())
+
+            full_msg = counts_msg + '\n\n' + selected_msg if selected_options else 'No one voted!'
+
+            embed = create_embed(
+                user=self.allowed_user,
+                title='Poll ended!',
+                description=full_msg
+            )
+
+            await interaction.message.edit(view=self.view)
+            await thread.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            self.view.stop()
+        else:
+            await interaction.followup.send('Not your button!', ephemeral=True)

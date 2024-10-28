@@ -25,6 +25,7 @@ MY_GUILD = discord.Object(id=int(DEV_GUILD_ID)) if DEV_GUILD_ID else None
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 client = DiscordClient(intents=intents, test_guild=MY_GUILD)
 
@@ -546,14 +547,13 @@ async def get_role(interaction: discord.Interaction, role: app_commands.Transfor
     await interaction.response.send_message(embed=embed)
 
 
-@client.tree.command(name='random')
+@random_cmds.command(name='roles')
 @app_commands.describe(faction='Only get roles from this faction')
 @app_commands.describe(amount='Amount of roles to generate, defaults to 1')
 @app_commands.describe(subalignment='Only get roles from this subalignment')
 @app_commands.describe(individuality='Whether to generate unique roles, defaults to false')
 @app_commands.describe(include_tags='Only include roles containing atleast one of the provided comma-seperated list of forum tags')
 @app_commands.describe(exclude_tags='Exclude roles that contain atleast one of the provided comma-seperated list of forum tags')
-@app_commands.guild_only()
 async def random_roles(
         interaction: discord.Interaction,
         amount: app_commands.Range[int, 1, 100] = 1,
@@ -795,6 +795,63 @@ async def generate_rolelist(
     roles_str = '\n'.join(f'<#{r.id}>' for r in roles)
 
     await interaction.response.send_message(roles_str)
+
+
+@client.tree.command(name='anonpoll')
+@app_commands.describe(poll_question='The question to ask')
+@app_commands.describe(poll_options='The comma-seperated list of options, defaults to "INNOCENT, GUILTY, ABSTAIN"')
+@app_commands.describe(include_role_1='If included roles are set, only members with those roles can vote')
+@app_commands.describe(exclude_role_1='Players with excluded roles can\'t vote')
+@app_commands.guild_only()
+async def start_anonpoll(
+        interaction: discord.Interaction,
+        poll_question: str,
+        poll_options: str = 'INNOCENT, GUILTY, ABSTAIN',
+        include_role_1: discord.Role | None = None,
+        include_role_2: discord.Role | None = None,
+        include_role_3: discord.Role | None = None,
+        exclude_role_1: discord.Role | None = None,
+        exclude_role_2: discord.Role | None = None,
+        exclude_role_3: discord.Role | None = None
+):
+    """Starts a hidden poll that sends votes to a private thread"""
+
+    include_role_1 = [include_role_1] if include_role_1 else list()
+    include_role_2 = [include_role_2] if include_role_2 else list()
+    include_role_3 = [include_role_3] if include_role_3 else list()
+    exclude_role_1 = [exclude_role_1] if exclude_role_1 else list()
+    exclude_role_2 = [exclude_role_2] if exclude_role_2 else list()
+    exclude_role_3 = [exclude_role_3] if exclude_role_3 else list()
+
+    included_roles = include_role_1 + include_role_2 + include_role_3
+    excluded_roles = exclude_role_1 + exclude_role_2 + exclude_role_3
+
+    poll_options = poll_options.split(',')
+    poll_options = [o.strip() for o in poll_options]
+
+    if not poll_options:
+        raise Exception('No poll options!')
+
+    private_thread = await interaction.channel.create_thread(name=f'Poll results: {poll_question}', invitable=False)
+    await private_thread.send(interaction.user.mention)
+
+    view = discord.ui.View(timeout=None)
+    select = utils.PollSelect(
+        thread=private_thread,
+        included_roles=included_roles,
+        excluded_roles=excluded_roles,
+        placeholder=poll_question
+    )
+    button = utils.PollSelectButton(allowed_user=interaction.user, custom_id=f'button:stop:{private_thread.id}')
+
+    view.add_item(select)
+    view.add_item(button)
+
+    for option in poll_options[:25]:
+        select.add_option(label=option[:100])
+
+    await interaction.response.send_message(poll_question, view=view)
+
 
 if __name__ == '__main__':
     client.tree.add_command(faction_cmds)
