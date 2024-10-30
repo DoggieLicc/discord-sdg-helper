@@ -879,8 +879,7 @@ async def generate_rolelist(
                 raise Exception('Thread isn\'t a assigned to a role!')
             cleaned_content = cleaned_content.replace(channel.mention, f'%{role[0].name}')
 
-    rolelist_info = get_rolelist(cleaned_content)
-    guild_info = get_guild_info(interaction)
+    rolelist_info = get_rolelist(cleaned_content, all_roles=guild_info.roles)
     roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
 
     roles_str = '\n'.join(f'<#{r.id}>' for r in roles)
