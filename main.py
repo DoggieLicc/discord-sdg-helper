@@ -862,7 +862,24 @@ async def generate_rolelist(
         message: discord.Message
 ):
     """Generate rolelist roles"""
-    rolelist_info = get_rolelist(message.content)
+
+    channel_mentions = message.channel_mentions
+    cleaned_content = message.content
+    guild_info = get_guild_info(interaction)
+
+    for channel in channel_mentions:
+        if isinstance(channel, discord.ForumChannel):
+            faction = [f for f in guild_info.factions if f.id == channel.id]
+            if not faction:
+                raise Exception('Channel isn\'t assigned to a faction!')
+            cleaned_content = cleaned_content.replace(channel.mention, f'${faction[0].name}')
+        else:
+            role = [r for r in guild_info.roles if r.id == channel.id]
+            if not role:
+                raise Exception('Thread isn\'t a assigned to a role!')
+            cleaned_content = cleaned_content.replace(channel.mention, f'%{role[0].name}')
+
+    rolelist_info = get_rolelist(cleaned_content)
     guild_info = get_guild_info(interaction)
     roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
 
