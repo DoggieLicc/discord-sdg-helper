@@ -1,17 +1,17 @@
 import io
 import textwrap
-from collections import Counter
-from contextlib import redirect_stdout
-from typing import Any, Optional, List, Union
-
 import discord
+import asqlite
 
 from dataclasses import dataclass
+from collections import Counter
+from contextlib import redirect_stdout
+from thefuzz import process
+from typing import Any
+
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
-from thefuzz import fuzz, process
 
-import asqlite
 from utils.funcs import get_guild_info, create_embed, cleanup_code, format_error, str_to_file
 from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
 
@@ -115,7 +115,7 @@ class DiscordClient(discord.Client):
         subalignment_data = await self.load_db_item('subalignments')
         infotag_data = await self.load_db_item('infotags')
 
-        all_data: list[tuple[dict[int, str], Any]] = [
+        all_data: list[tuple[dict[int, str], type[SDGObject]]] = [
             (faction_data, Faction),
             (infotag_data, InfoCategory)
         ]
@@ -135,7 +135,7 @@ class DiscordClient(discord.Client):
                         base_class = data[1]
 
                         if forum_channel.id == channel_id:
-                            compiled_class: type[SDGObject] = base_class(name, channel_id)
+                            compiled_class: SDGObject = base_class(name, channel_id)
                             compiled_classes.append(compiled_class)
 
             factions = [f for f in compiled_classes if isinstance(f, Faction)]
@@ -245,8 +245,8 @@ class ChoiceTransformer(app_commands.Transformer):
         ...
 
     async def autocomplete(
-        self, interaction: Interaction, value: Union[int, float, str], /
-    ) -> List[Choice[Union[int, float, str]]]:
+        self, interaction: Interaction, value: int | float | str, /
+    ) -> list[Choice[int | float | str]]:
         choices = self.get_choices(interaction)
         if not value:
             return choices[:25]

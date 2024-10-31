@@ -1,8 +1,8 @@
 import io
 import traceback
-
 import discord
-from discord import Embed, User
+
+from discord import Embed, User, Member
 from datetime import datetime
 
 
@@ -12,7 +12,7 @@ def get_guild_info(interaction: discord.Interaction):
             return g
 
 
-def create_embed(user: User | None, *, image=None, thumbnail=None, **kwargs) -> Embed:
+def create_embed(user: User | Member | None, *, image=None, thumbnail=None, **kwargs) -> Embed:
     """Makes a discord.Embed with options for image and thumbnail URLs, and adds a footer with author name"""
 
     kwargs['color'] = kwargs.get('color', discord.Color.green())

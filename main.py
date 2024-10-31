@@ -1,5 +1,4 @@
 import asyncio
-
 import discord
 import os
 import random
@@ -11,7 +10,7 @@ from discord import app_commands
 
 import utils.classes
 
-from utils import DiscordClient, Role, Faction, Subalignment
+from utils import DiscordClient, Role, Faction, Subalignment, InfoCategory, InfoTag, GuildInfo
 from utils import get_guild_info, get_rolelist, generate_rolelist_roles
 
 load_dotenv()
@@ -55,7 +54,7 @@ def mod_check(interaction: discord.Interaction) -> bool:
     return False
 
 
-async def sync_faction(faction: utils.Faction):
+async def sync_faction(faction: Faction):
     forum_channel = client.get_channel(faction.id)
     guild_info = [g for g in client.guild_info if g.guild_id == forum_channel.guild.id][0]
     subalignments = guild_info.subalignments
@@ -83,7 +82,7 @@ async def sync_faction(faction: utils.Faction):
 
         if subalignment:
             forum_tags = [str(t).lower() for t in thread.applied_tags if t.id != subalignment.id]
-            roles.append(utils.Role(thread.name, thread.id, faction, subalignment, set(forum_tags)))
+            roles.append(Role(thread.name, thread.id, faction, subalignment, set(forum_tags)))
 
         if not subalignment:
             failed_roles.append(thread)
@@ -101,7 +100,7 @@ async def sync_faction(faction: utils.Faction):
     return roles, failed_roles
 
 
-async def sync_infotags(info_category: utils.InfoCategory):
+async def sync_infotags(info_category: InfoCategory):
     forum_channel = client.get_channel(info_category.id)
     guild_info = [g for g in client.guild_info if g.guild_id == forum_channel.guild.id][0]
 
@@ -116,7 +115,7 @@ async def sync_infotags(info_category: utils.InfoCategory):
         if thread.flags.pinned:
             continue
 
-        tags.append(utils.InfoTag(name=thread.name, id=thread.id))
+        tags.append(InfoTag(name=thread.name, id=thread.id))
 
     guild_info_tags += tags
     guild_info.info_tags = guild_info_tags
@@ -143,7 +142,7 @@ async def sync_guild(guild: discord.Guild):
         await sync_infotags(info_cat)
 
 
-def get_faction_roles(faction: utils.Faction) -> list[utils.Role]:
+def get_faction_roles(faction: Faction) -> list[Role]:
     forum_channel = client.get_channel(faction.id)
     guild_info = [g for g in client.guild_info if g.guild_id == forum_channel.guild.id][0]
     roles = []
@@ -155,7 +154,7 @@ def get_faction_roles(faction: utils.Faction) -> list[utils.Role]:
     return roles
 
 
-def get_faction_subalignments(faction: utils.Faction) -> list[utils.Subalignment]:
+def get_faction_subalignments(faction: Faction) -> list[Subalignment]:
     forum_channel = client.get_channel(faction.id)
     guild_info = [g for g in client.guild_info if g.guild_id == forum_channel.guild.id][0]
 
@@ -168,7 +167,7 @@ def get_faction_subalignments(faction: utils.Faction) -> list[utils.Subalignment
     return subalignments
 
 
-def get_subalignment_roles(subalignment: utils.Subalignment) -> list[utils.Role]:
+def get_subalignment_roles(subalignment: Subalignment) -> list[Role]:
     for channel in client.get_all_channels():
         if isinstance(channel, discord.ForumChannel):
             for tag in channel.available_tags:
@@ -185,7 +184,7 @@ def get_subalignment_roles(subalignment: utils.Subalignment) -> list[utils.Role]
     return roles
 
 
-def get_subalignment_faction(subalignment: utils.Subalignment) -> utils.Faction:
+def get_subalignment_faction(subalignment: Subalignment) -> Faction:
     for channel in client.get_all_channels():
         if isinstance(channel, discord.ForumChannel):
             for tag in channel.available_tags:
@@ -253,7 +252,7 @@ async def on_guild_join(guild: discord.Guild):
     if guild_info:
         return
 
-    client.guild_info.append(utils.GuildInfo(
+    client.guild_info.append(GuildInfo(
         guild.id,
         list(),
         list(),
@@ -402,7 +401,7 @@ async def faction_add(interaction: discord.Interaction, forum_channel: discord.F
 @app_commands.describe(faction='The faction to view')
 async def faction_view(
         interaction: discord.Interaction,
-        faction: app_commands.Transform[utils.Faction, utils.FactionTransformer]
+        faction: app_commands.Transform[Faction, utils.FactionTransformer]
 ):
     """Get faction info"""
     roles = get_faction_roles(faction)
@@ -425,10 +424,10 @@ async def faction_view(
 @app_commands.check(mod_check)
 async def faction_remove(
         interaction: discord.Interaction,
-        faction: app_commands.Transform[utils.Faction, utils.FactionTransformer]
+        faction: app_commands.Transform[Faction, utils.FactionTransformer]
 ):
     """Removes a faction"""
-    guild_info: utils.GuildInfo = get_guild_info(interaction)
+    guild_info: GuildInfo = get_guild_info(interaction)
     faction_roles = get_faction_roles(faction)
 
     guild_info.factions.remove(faction)
@@ -459,7 +458,7 @@ async def faction_remove(
 @app_commands.check(mod_check)
 async def faction_sync(
         interaction: discord.Interaction,
-        faction: app_commands.Transform[utils.Faction, utils.FactionTransformer]
+        faction: app_commands.Transform[Faction, utils.FactionTransformer]
 ):
     """Sync faction's roles and subalignments manually"""
     roles, failed_roles = await sync_faction(faction)
@@ -483,12 +482,12 @@ async def faction_sync(
 @app_commands.check(mod_check)
 async def subalignment_add(
         interaction: discord.Interaction,
-        faction: app_commands.Transform[utils.Faction, utils.FactionTransformer],
+        faction: app_commands.Transform[Faction, utils.FactionTransformer],
         forum_tag: app_commands.Transform[discord.ForumTag, utils.ForumTagTransformer]
 ):
     """Add a subalignment to a faction"""
     guild_info = get_guild_info(interaction)
-    subalignment = utils.Subalignment(forum_tag.name, forum_tag.id)
+    subalignment = Subalignment(forum_tag.name, forum_tag.id)
     guild_info.subalignments.append(subalignment)
 
     try:
@@ -514,7 +513,7 @@ async def subalignment_add(
 @app_commands.describe(subalignment='The subalignment to view')
 async def subalignment_view(
         interaction: discord.Interaction,
-        subalignment: app_commands.Transform[utils.Subalignment, utils.SubalignmentTransformer]
+        subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer]
 ):
     """Get info for a subalignment"""
     roles = get_subalignment_roles(subalignment)
@@ -541,7 +540,7 @@ async def subalignment_view(
 @app_commands.describe(subalignment='The subalignment to remove')
 async def subalignment_remove(
         interaction: discord.Interaction,
-        subalignment: app_commands.Transform[utils.Subalignment, utils.SubalignmentTransformer]
+        subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer]
 ):
     """Removes a subalignment from the bot"""
     faction = get_subalignment_faction(subalignment)
@@ -575,7 +574,7 @@ async def subalignment_remove(
 @client.tree.command(name='role')
 @app_commands.guild_only()
 @app_commands.describe(role='The role to view')
-async def get_role(interaction: discord.Interaction, role: app_commands.Transform[utils.Role, utils.RoleTransformer]):
+async def get_role(interaction: discord.Interaction, role: app_commands.Transform[Role, utils.RoleTransformer]):
     """Get info on a role"""
     thread_channel = interaction.guild.get_channel_or_thread(role.id)
     starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
@@ -603,8 +602,8 @@ async def get_role(interaction: discord.Interaction, role: app_commands.Transfor
 async def random_roles(
         interaction: discord.Interaction,
         amount: app_commands.Range[int, 1, 100] = 1,
-        faction: app_commands.Transform[utils.Faction, utils.FactionTransformer] | None = None,
-        subalignment: app_commands.Transform[utils.Subalignment, utils.SubalignmentTransformer] | None = None,
+        faction: app_commands.Transform[Faction, utils.FactionTransformer] | None = None,
+        subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer] | None = None,
         individuality: bool = False,
         include_tags: str | None = '',
         exclude_tags: str | None = ''
@@ -803,7 +802,7 @@ async def infotag_add(interaction: discord.Interaction, forum_channel: discord.F
 @app_commands.check(mod_check)
 async def infotag_remove(
         interaction: discord.Interaction,
-        info_category: app_commands.Transform[utils.InfoCategory, utils.InfoCategoryTransformer],
+        info_category: app_commands.Transform[InfoCategory, utils.InfoCategoryTransformer],
 ):
     """Removes an infotag"""
     guild_info = get_guild_info(interaction)
@@ -833,8 +832,8 @@ async def infotag_remove(
 @app_commands.describe(info_tag='The infotag to view')
 async def infotag_view(
         interaction: discord.Interaction,
-        info_category: app_commands.Transform[utils.InfoCategory, utils.InfoCategoryTransformer],
-        info_tag: app_commands.Transform[utils.InfoTag, utils.InfoTagTransformer]
+        info_category: app_commands.Transform[InfoCategory, utils.InfoCategoryTransformer],
+        info_tag: app_commands.Transform[InfoTag, utils.InfoTagTransformer]
 ):
     """View an infotag"""
     info_cat_channel = interaction.guild.get_channel_or_thread(info_category.id)
@@ -867,7 +866,7 @@ async def syncall(
         await sync_guild(interaction.guild)
         await asyncio.sleep(3)
 
-    guild_info: utils.GuildInfo = get_guild_info(interaction)
+    guild_info: GuildInfo = get_guild_info(interaction)
 
     len_factions = len(guild_info.factions)
     len_subalignments = len(guild_info.subalignments)

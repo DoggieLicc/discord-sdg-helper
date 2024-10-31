@@ -1,6 +1,6 @@
-from dataclasses import dataclass
-
 import asqlite
+
+from dataclasses import dataclass
 
 
 @dataclass
