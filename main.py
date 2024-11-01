@@ -708,7 +708,7 @@ async def random_members(
         role: discord.Role | None = None
 ):
     """Get random server members!"""
-    valid_members = role.members if role else interaction.guild.members
+    valid_members = role.members if role else list(interaction.guild.members)
     len_valid_members = len(valid_members)
     chosen_members = []
     for _ in range(amount):
