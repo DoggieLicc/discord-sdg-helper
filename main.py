@@ -130,16 +130,21 @@ async def sync_infotags(info_category: InfoCategory):
     return tags, failed_tags
 
 
-async def sync_guild(guild: discord.Guild):
+async def sync_guild(guild: discord.Guild) -> dict[int, list[discord.Thread]]:
     guild_info = [g for g in client.guild_info if g.guild_id == guild.id]
     if not guild_info:
         return
 
+    failed_factions = {}
+
     for faction in copy.deepcopy(guild_info[0].factions):
-        await sync_faction(faction)
+        _, failed_roles = await sync_faction(faction)
+        failed_factions[faction.id] = failed_roles
 
     for info_cat in guild_info[0].info_categories:
         await sync_infotags(info_cat)
+
+    return failed_factions
 
 
 def get_faction_roles(faction: Faction) -> list[Role]:
@@ -465,7 +470,7 @@ async def faction_sync(
 
     failed_str = '\n'.join(r.mention for r in failed_roles)
     if failed_str:
-        failed_str = f'\n\nThreads unable to be synced due to lack of subalignment tag or duplicate name:\n' + failed_str
+        failed_str = f'\n\nThreads unable to be synced due to lack of subalignment tag:\n' + failed_str
 
     embed = utils.create_embed(
         interaction.user,
@@ -851,20 +856,17 @@ async def infotag_view(
     await interaction.response.send_message(embed=embed)
 
 
-@client.tree.command(name='syncall')
+@client.tree.command(name='maintenance')
 @app_commands.guild_only()
 @app_commands.check(mod_check)
-async def syncall(
+async def maintenance(
         interaction: discord.Interaction,
-        no_sync: bool = False
 ):
-    """Manually sync everything in the server!"""
+    """Get maintenance info for this server"""
 
     await interaction.response.defer()
 
-    if not no_sync:
-        await sync_guild(interaction.guild)
-        await asyncio.sleep(3)
+    failed_factions = await sync_guild(interaction.guild)
 
     guild_info: GuildInfo = get_guild_info(interaction)
 
@@ -876,14 +878,27 @@ async def syncall(
 
     embed = utils.create_embed(
         interaction.user,
-        title='Guild synced',
-        description=f'Synced!\n\n'
+        title='Maintenance info!',
+        description=f'If there are failed roles, make sure your subalignments are set up properly!\n\n'
                     f'**Factions:** {len_factions}\n'
                     f'**Subalignments:** {len_subalignments}\n'
                     f'**Info Categories:** {len_infocategories}\n\n'
                     f'**Roles:** {len_roles}\n'
                     f'**Info tags:** {len_infotags}'
     )
+
+    for k, v in failed_factions.items():
+        if not v:
+            continue
+
+        faction = [f for f in guild_info.factions if f.id == k][0]
+        failed_str = '\n'.join(r.mention for r in v)
+        embed.add_field(
+            name=f'Failed roles in {faction.name}',
+            value=failed_str[:1000],
+            inline=False
+        )
+        embed.colour = discord.Color.yellow()
 
     await interaction.followup.send(embed=embed)
 
