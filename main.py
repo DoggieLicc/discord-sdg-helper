@@ -34,22 +34,38 @@ faction_cmds = app_commands.Group(name='faction', description='Commands to manag
 subalignment_cmds = app_commands.Group(name='subalignment', description='Commands to manage and view subalignments')
 infotag_cmds = app_commands.Group(name='infotag', description='Commands to manage and view infotags')
 random_cmds = app_commands.Group(name='random', description='Randomization commands')
+trust_cmds = app_commands.Group(name='trust', description='Commands to manage trust of roles/members')
 
 faction_cmds.guild_only = True
 subalignment_cmds.guild_only = True
 infotag_cmds.guild_only = True
 random_cmds.guild_only = True
+trust_cmds.guild_only = True
+
+admin_perms = discord.Permissions.none()
+admin_perms.manage_guild = True
+
+trust_cmds.default_permissions = admin_perms
 
 
 client.allowed_mentions = discord.AllowedMentions(users=True, replied_user=True, everyone=False, roles=False)
 
 
 def mod_check(interaction: discord.Interaction) -> bool:
+    guild_info = get_guild_info(interaction)
+
     if interaction.user.id == DEV:
         return True
 
     if interaction.user.guild_permissions.manage_channels:
         return True
+
+    if interaction.user.id in guild_info.trusted_ids:
+        return True
+
+    for role in interaction.user.roles:
+        if role.id in guild_info.trusted_ids:
+            return True
 
     return False
 
@@ -201,15 +217,16 @@ def get_subalignment_faction(subalignment: Subalignment) -> Faction:
                     return faction
 
 
-async def add_archived_threads(forum_channel: discord.ForumChannel):
-    if forum_channel.id in client.populated_forum_ids:
+async def add_archived_threads(forum_channel: discord.ForumChannel, force: bool = False):
+    if forum_channel.id in client.populated_forum_ids and not force:
         return
 
     async for thread in forum_channel.archived_threads(limit=None):
         # Add to dpy's internal cache lol
         thread.guild._threads[thread.id] = thread
 
-    client.populated_forum_ids.append(forum_channel.id)
+    if not force:
+        client.populated_forum_ids.append(forum_channel.id)
 
 
 async def sync_all():
@@ -263,6 +280,7 @@ async def on_guild_join(guild: discord.Guild):
         list(),
         list(),
         list(),
+        list(),
         list()
     ))
 
@@ -301,7 +319,7 @@ async def on_raw_thread_delete(payload: discord.RawThreadDeleteEvent):
     infotag = [t for t in guild_info[0].info_categories if t.id == payload.parent_id]
 
     if infotag:
-        ...
+        await sync_infotags(infotag[0])
         return
 
 
@@ -998,10 +1016,109 @@ async def start_anonpoll(
     await interaction.response.send_message(poll_question, view=view)
 
 
+@trust_cmds.command(name='add')
+@app_commands.describe(trustee='The member or role you want to give trust to')
+async def trust_add(interaction: discord.Interaction, trustee: discord.Member | discord.Role):
+    """Allow a role/member access to special commands"""
+    guild_info = get_guild_info(interaction)
+
+    if trustee.id in guild_info.trusted_ids:
+        embed = utils.create_embed(
+            interaction.user,
+            title='Role/member already trusted!',
+            description='The provided role/member is already trusted',
+            color=discord.Color.red()
+        )
+
+        return await interaction.response.send_message(embed=embed)
+
+    guild_info.trusted_ids.append(trustee.id)
+
+    try:
+        client.guild_info.remove([gi for gi in client.guild_info if gi.guild_id == interaction.guild_id][0])
+    except ValueError:
+        pass
+
+    client.guild_info.append(guild_info)
+
+    await client.add_trusted_id_in_db(trustee.id, interaction.guild_id)
+
+    embed = utils.create_embed(
+        interaction.user,
+        title='Added trustee!',
+        description=f'Added trust to {trustee.mention}'
+    )
+
+    await interaction.response.send_message(embed=embed)
+
+
+@trust_cmds.command(name='remove')
+@app_commands.describe(trustee='The trusted member or role you want remove')
+async def trust_remove(interaction: discord.Interaction, trustee: discord.Member | discord.Role):
+    """Removes trust from role or member"""
+    guild_info = get_guild_info(interaction)
+
+    try:
+        guild_info.trusted_ids.remove(trustee.id)
+    except ValueError:
+        embed = utils.create_embed(
+            interaction.user,
+            title='Role/member not in list!',
+            description='The provided role/member isn\'t in the trustee list',
+            color=discord.Color.red()
+        )
+
+        return await interaction.response.send_message(embed=embed)
+
+    try:
+        client.guild_info.remove([gi for gi in client.guild_info if gi.guild_id == interaction.guild_id][0])
+    except ValueError:
+        pass
+
+    client.guild_info.append(guild_info)
+
+    await client.delete_trusted_id_in_db(trustee.id)
+
+    embed = utils.create_embed(
+        interaction.user,
+        title='Deleted trustee!',
+        description=f'Deleted trust from {trustee.mention}'
+    )
+
+    await interaction.response.send_message(embed=embed)
+
+
+@trust_cmds.command(name='list')
+async def trust_view(interaction: discord.Interaction):
+    """List all members/roles that are trusted"""
+    guild_info = get_guild_info(interaction)
+
+    trusted_strs = []
+
+    for trusted in guild_info.trusted_ids:
+        role = interaction.guild.get_role(trusted)
+        if role:
+            trusted_strs.append(role.mention)
+            continue
+
+        trusted_strs.append(f'<@{trusted}>')
+
+    trusted_str = '\n'.join(trusted_strs) or 'No roles or members are trusted yet! (/trust add)'
+
+    embed = utils.create_embed(
+        interaction.user,
+        title='List of trusted members/roles:',
+        description=trusted_str
+    )
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
 if __name__ == '__main__':
     client.tree.add_command(faction_cmds)
     client.tree.add_command(subalignment_cmds)
     client.tree.add_command(infotag_cmds)
     client.tree.add_command(random_cmds)
+    client.tree.add_command(trust_cmds)
 
     client.run(DISCORD_TOKEN)

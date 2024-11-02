@@ -68,6 +68,22 @@ InfotagTable = BaseTable(
 )
 
 
+TrustedIds = BaseTable(
+    name='trusted_ids',
+    columns=[
+        BaseColumn(
+            name='id',
+            datatype='integer',
+            addit_schema='PRIMARY KEY'
+        ),
+        BaseColumn(
+            name='guild_id',
+            datatype='integer'
+        )
+    ]
+)
+
+
 class DiscordClient(discord.Client):
     def __init__(self, test_guild, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -75,7 +91,7 @@ class DiscordClient(discord.Client):
         self.TEST_GUILD = test_guild
         self.guild_info: list[GuildInfo] = list()
         self.db_helper = DatabaseHelper(
-            [FactionTable, SubalignmentTable, InfotagTable],
+            [FactionTable, SubalignmentTable, InfotagTable, TrustedIds],
             'guild_info.db',
             check_same_thread=False
         )
@@ -98,6 +114,16 @@ class DiscordClient(discord.Client):
                         items[channel_id] = item_name
 
             return items
+
+    async def load_trusted_ids(self, guild_id: int) -> list[int]:
+        trusted_ids = []
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                for row in await cursor.execute(f'SELECT * FROM trusted_ids WHERE guild_id = (?)', (guild_id,)):
+                    trusted_id: int = row['id']
+                    trusted_ids.append(trusted_id)
+
+        return trusted_ids
 
     async def setup_hook(self):
         self.guild_task = self.loop.create_task(self.load_guild_info())
@@ -150,13 +176,16 @@ class DiscordClient(discord.Client):
 
             info_categories = [i for i in compiled_classes if isinstance(i, InfoCategory)]
 
+            trusted_ids = await self.load_trusted_ids(guild.id)
+
             guild_info = GuildInfo(
                 guild_id=guild.id,
                 factions=factions,
                 subalignments=subalignments,
                 roles=list(),
                 info_categories=info_categories,
-                info_tags=list()
+                info_tags=list(),
+                trusted_ids=trusted_ids
             )
 
             self.guild_info.append(guild_info)
@@ -192,6 +221,30 @@ class DiscordClient(discord.Client):
         await self.delete_item_from_db(item, table_name)
         await self.add_item_to_db(item, table_name)
 
+    async def add_trusted_id_in_db(self, trusted_id: int, guild_id: int):
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'INSERT OR IGNORE INTO trusted_ids VALUES (?, ?)',
+                    (
+                        trusted_id,
+                        guild_id
+                    )
+                )
+
+            await conn.commit()
+
+    async def delete_trusted_id_in_db(self, trusted_id: int):
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'DELETE FROM trusted_ids WHERE id = (?)',
+                    (
+                        trusted_id,
+                    )
+                )
+
+            await conn.commit()
 
 @dataclass
 class Faction(SDGObject):
@@ -227,6 +280,7 @@ class GuildInfo:
     roles: list[Role]
     info_categories: list[InfoCategory]
     info_tags: list[InfoTag]
+    trusted_ids: list[int]
 
 
 class SDGException(Exception):
