@@ -509,12 +509,14 @@ class DevEval(discord.ui.Modal, title='Dev Eval'):
 
     async def on_submit(self, interaction: discord.Interaction):
         ret = await self.eval_code(interaction)
+        code = cleanup_code(self.code.value)
+        formatted_code = '```py\n' + code + '\n```'
 
         if isinstance(ret, discord.Embed):
-            await interaction.response.send_message(embed=ret)
+            await interaction.response.send_message(formatted_code, embed=ret)
 
         if isinstance(ret, discord.File):
-            await interaction.response.send_message('Eval code executed:', files=[ret])
+            await interaction.response.send_message(formatted_code, files=[ret])
 
 
 class PollSelect(discord.ui.Select):
