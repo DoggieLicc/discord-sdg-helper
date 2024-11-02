@@ -124,11 +124,15 @@ async def sync_infotags(info_category: InfoCategory):
     tags = []
 
     guild_info_tags = [r for r in guild_info.info_tags if r.id != info_category.id]
+    guild_info_tags_ids = [t.id for t in guild_info_tags]
 
     await add_archived_threads(forum_channel)
 
     for thread in forum_channel.threads:
         if thread.flags.pinned:
+            continue
+
+        if thread.id in guild_info_tags_ids:
             continue
 
         tags.append(InfoTag(name=thread.name, id=thread.id))
@@ -861,6 +865,11 @@ async def infotag_view(
     """View an infotag"""
     info_cat_channel = interaction.guild.get_channel_or_thread(info_category.id)
     info_tag_thread = info_cat_channel.get_thread(info_tag.id)
+
+    if not info_tag_thread:
+        await add_archived_threads(info_cat_channel, force=True)
+        info_tag_thread = info_cat_channel.get_thread(info_tag.id)
+
     info_tag_msg = info_tag_thread.starter_message or await info_tag_thread.fetch_message(info_tag_thread.id)
     message_image = info_tag_msg.attachments[0] if info_tag_msg.attachments else None
 
