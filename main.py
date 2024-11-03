@@ -580,7 +580,7 @@ async def subalignment_view(
         interaction.user,
         title='Subalignment info',
         description=f'**Name:** {forum_tag.emoji} {subalignment.name.title()}\n'
-                    f'**Main faction:** {faction}\n'
+                    f'**Main faction:** <#{faction.id}>\n'
                     f'**Amount of roles:** {len(roles)}'
     )
 
