@@ -79,6 +79,10 @@ async def sync_faction(faction: Faction):
     roles = []
 
     guild_info_roles = [r for r in guild_info.roles if r.faction.id != faction.id]
+    pre_faction_roles = [r for r in guild_info.roles if r.faction.id == faction.id]
+    pre_faction_roles_ids = [r.id for r in pre_faction_roles]
+
+    roles += pre_faction_roles
 
     await add_archived_threads(forum_channel)
 
@@ -86,6 +90,9 @@ async def sync_faction(faction: Faction):
         subalignment = None
 
         if thread.flags.pinned:
+            continue
+
+        if thread.id in pre_faction_roles_ids:
             continue
 
         for tag in thread.applied_tags:
@@ -295,17 +302,31 @@ async def on_raw_thread_update(payload: discord.RawThreadUpdateEvent):
     if not guild_info:
         return
 
-    faction = [f for f in guild_info[0].factions if f.id == payload.parent_id]
+    guild_info = guild_info[0]
+
+    guild = client.get_guild(payload.guild_id)
+    thread = payload.thread or await guild.fetch_channel(payload.thread_id)
+
+    if thread not in guild._threads.values():
+        print(f'Adding {thread.name} ({thread.id}) to cache')
+        guild._threads[thread.id] = thread
+
+    faction = [f for f in guild_info.factions if f.id == payload.parent_id]
 
     if faction:
-        await sync_faction(faction[0])
-        return
+        roles = [r for r in get_faction_roles(faction[0]) if r.id != payload.thread_id]
+        guild_info.roles = roles
 
-    infotag = [t for t in guild_info[0].info_categories if t.id == payload.parent_id]
+    infotag = [t for t in guild_info.info_categories if t.id == payload.parent_id]
 
     if infotag:
-        await sync_infotags(infotag[0])
-        return
+        infotags = [t for t in guild_info.info_tags if t.id != payload.thread_id]
+        guild_info.info_tags = infotags
+
+    if faction or infotag:
+        client.guild_info.remove([gi for gi in client.guild_info if gi.guild_id == payload.guild_id][0])
+        client.guild_info.append(guild_info)
+        await sync_guild(guild)
 
 
 @client.event
@@ -314,17 +335,21 @@ async def on_raw_thread_delete(payload: discord.RawThreadDeleteEvent):
     if not guild_info:
         return
 
-    faction = [f for f in guild_info[0].factions if f.id == payload.parent_id]
+    guild_info = guild_info[0]
+
+    faction = [f for f in guild_info.factions if f.id == payload.parent_id]
 
     if faction:
-        await sync_faction(faction[0])
-        return
+        guild_info.roles = [r for r in guild_info.roles if r.id != payload.thread_id]
 
-    infotag = [t for t in guild_info[0].info_categories if t.id == payload.parent_id]
+    infotag = [t for t in guild_info.info_categories if t.id == payload.parent_id]
 
     if infotag:
-        await sync_infotags(infotag[0])
-        return
+        guild_info.info_tags = [t for t in guild_info.info_tags if t.id != payload.thread_id]
+
+    if infotag or faction:
+        client.guild_info.remove([gi for gi in client.guild_info if gi.guild_id == payload.guild_id][0])
+        client.guild_info.append(guild_info)
 
 
 @client.tree.error
