@@ -10,9 +10,8 @@ from discord import app_commands
 
 import utils.classes
 
-from utils import DiscordClient, Role, Faction, Subalignment, InfoCategory, InfoTag, GuildInfo
+from utils import DiscordClient, Role, Faction, Subalignment, InfoCategory, InfoTag, GuildInfo, PaginatedMenu
 from utils import get_guild_info, get_rolelist, generate_rolelist_roles
-from utils import RoleFactionMenu
 
 load_dotenv()
 
@@ -247,6 +246,21 @@ async def sync_all():
 
     print('ALL GUILDS SYNCED!')
 
+
+class RoleFactionMenu(PaginatedMenu):
+    def format_line(self, item: Role) -> str:
+        faction_channel = client.get_channel(item.faction.id)
+        sub_tag = faction_channel.get_tag(item.subalignment.id)
+        return f'{sub_tag.emoji} {item.name} (<#{item.id}>)'
+
+    async def get_page_contents(self) -> dict:
+        page = self.paginator.pages[self.current_page-1]
+        embed = utils.create_embed(
+            self.owner,
+            title=f'Listing roles ({self.current_page}/{self.max_page})',
+            description=page
+        )
+        return {'embed': embed}
 
 @client.event
 async def on_ready():
@@ -705,7 +719,7 @@ async def random_roles(
         if individuality:
             valid_roles.remove(chosen_role)
 
-    chosen_roles_str = '\n'.join([f'<#{r.id}>' for r in chosen_roles])
+    chosen_roles_str = '\n'.join([f'{r.name} (<#{r.id}>)' for r in chosen_roles])
 
     embed = utils.create_embed(
         interaction.user,
@@ -990,7 +1004,7 @@ async def generate_rolelist(
     rolelist_info = get_rolelist(cleaned_content, all_roles=guild_info.roles)
     roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
 
-    roles_str = '\n'.join(f'<#{r.id}>' for r in roles)
+    roles_str = '\n'.join(f'{r.name} (<#{r.id}>)' for r in roles)
 
     await interaction.response.send_message(roles_str)
 
@@ -1193,6 +1207,8 @@ async def list_roles(
             continue
 
         valid_roles.append(role)
+
+    valid_roles.sort(key=lambda r: r.subalignment.name)
 
     view = RoleFactionMenu(
         owner=interaction.user,

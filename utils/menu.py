@@ -97,16 +97,3 @@ class PaginatedMenu(View):
     async def on_error(self, interaction: Interaction, error: Exception, item: Item[Any], /) -> None:
         print(type(error), error)
 
-
-class RoleFactionMenu(PaginatedMenu):
-    def format_line(self, item) -> str:
-        return f'<#{item.id}>'
-
-    async def get_page_contents(self) -> dict:
-        page = self.paginator.pages[self.current_page-1]
-        embed = create_embed(
-            self.owner,
-            title=f'Listing roles ({self.current_page}/{self.max_page})',
-            description=page
-        )
-        return {'embed': embed}
