@@ -12,6 +12,7 @@ import utils.classes
 
 from utils import DiscordClient, Role, Faction, Subalignment, InfoCategory, InfoTag, GuildInfo
 from utils import get_guild_info, get_rolelist, generate_rolelist_roles
+from utils import RoleFactionMenu
 
 load_dotenv()
 
@@ -1146,6 +1147,64 @@ async def trust_view(interaction: discord.Interaction):
     )
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@client.tree.command(name='listroles')
+@app_commands.describe(faction='List roles part of this faction')
+@app_commands.describe(subalignment='List roles part of this subalignment')
+@app_commands.describe(include_tags='List roles that has atleast one of these comma-seperated forum tags')
+@app_commands.describe(exclude_tags='Don\'t list roles that have any of these comma-seperated forum tags')
+async def list_roles(
+    interaction: discord.Interaction,
+    faction: app_commands.Transform[Faction, utils.FactionTransformer] | None = None,
+    subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer] | None = None,
+    include_tags: str | None = '',
+    exclude_tags: str | None = ''
+):
+    """Lists all roles that fit the filters"""
+    guild_info = get_guild_info(interaction)
+    split_include_tags = include_tags.split(',')
+    split_exclude_tags = exclude_tags.split(',')
+
+    valid_roles = []
+    for role in guild_info.roles:
+        if faction and role.faction.id != faction.id:
+            continue
+
+        if subalignment and role.subalignment.id != subalignment.id:
+            continue
+
+        role_thread = interaction.guild.get_channel_or_thread(role.id)
+        role_thread_tags = [t.name.lower().strip() for t in role_thread.applied_tags]
+        has_included_tag = not bool(include_tags)
+        has_excluded_tag = False
+
+        for exclude_tag in split_exclude_tags:
+            normalized_e_tag = exclude_tag.lower().strip()
+            if normalized_e_tag in role_thread_tags:
+                has_excluded_tag = True
+
+        for include_tag in split_include_tags:
+            normalized_i_tag = include_tag.lower().strip()
+            if normalized_i_tag in role_thread_tags:
+                has_included_tag = True
+
+        if has_excluded_tag or not has_included_tag:
+            continue
+
+        valid_roles.append(role)
+
+    view = RoleFactionMenu(
+        owner=interaction.user,
+        items=valid_roles
+    )
+
+    contents = await view.get_page_contents()
+
+    if view.max_page == 1:
+        view = discord.utils.MISSING
+
+    await interaction.response.send_message(view=view, **contents)
 
 
 if __name__ == '__main__':
