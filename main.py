@@ -10,7 +10,7 @@ from discord import app_commands
 
 import utils.classes
 
-from utils import DiscordClient, Role, Faction, Subalignment, InfoCategory, InfoTag, GuildInfo, PaginatedMenu
+from utils import DiscordClient, Role, Faction, Subalignment, InfoCategory, InfoTag, GuildInfo, PaginatedMenu, SDGException
 from utils import get_guild_info, get_rolelist, generate_rolelist_roles
 
 load_dotenv()
@@ -262,6 +262,7 @@ class RoleFactionMenu(PaginatedMenu):
         )
         return {'embed': embed}
 
+
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user} (ID: {client.user.id})')
@@ -384,7 +385,10 @@ async def error_handler(interaction: discord.Interaction, error: app_commands.Ap
         error_message = f'You are missing the following permissions: {error.missing_permissions}'
 
     if isinstance(error, app_commands.BotMissingPermissions):
-        error_message= f'The bot is missing the following permissions: {error.missing_permissions}'
+        error_message = f'The bot is missing the following permissions: {error.missing_permissions}'
+
+    if isinstance(error, SDGException):
+        error_message = str(error)
 
     if not error_message:
         error_message = f'An unknown error occurred: {error}\n\nError info will be sent to owner'
@@ -993,12 +997,12 @@ async def generate_rolelist(
         if isinstance(channel, discord.ForumChannel):
             faction = [f for f in guild_info.factions if f.id == channel.id]
             if not faction:
-                raise Exception('Channel isn\'t assigned to a faction!')
+                raise SDGException('Channel isn\'t assigned to a faction!')
             cleaned_content = cleaned_content.replace(channel.mention, f'${faction[0].name}')
         else:
             role = [r for r in guild_info.roles if r.id == channel.id]
             if not role:
-                raise Exception('Thread isn\'t a assigned to a role!')
+                raise SDGException('Thread isn\'t a assigned to a role!')
             cleaned_content = cleaned_content.replace(channel.mention, f'%{role[0].name}')
 
     rolelist_info = get_rolelist(cleaned_content, all_roles=guild_info.roles)
@@ -1042,7 +1046,7 @@ async def start_anonpoll(
     poll_options = [o.strip() for o in poll_options]
 
     if not poll_options:
-        raise Exception('No poll options!')
+        raise SDGException('No poll options!')
 
     private_thread = await interaction.channel.create_thread(name=f'Poll results: {poll_question}', invitable=False)
     await private_thread.send(interaction.user.mention)
@@ -1209,6 +1213,9 @@ async def list_roles(
         valid_roles.append(role)
 
     valid_roles.sort(key=lambda r: r.subalignment.name)
+
+    if not valid_roles:
+        raise SDGException('No valid roles fit those filters!')
 
     view = RoleFactionMenu(
         owner=interaction.user,
