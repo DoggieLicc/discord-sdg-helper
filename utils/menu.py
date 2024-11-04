@@ -25,7 +25,7 @@ class PaginatedMenu(View):
         return str(item)
 
     def get_paginator(self, items) -> Paginator:
-        paginator = Paginator(prefix=None, suffix=None, max_size=1000)
+        paginator = Paginator(prefix=None, suffix=None, max_size=500)
 
         for item in items:
             paginator.add_line(self.format_line(item))
