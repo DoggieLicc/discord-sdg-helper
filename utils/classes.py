@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import copy
 import io
 import textwrap
 import discord
@@ -11,6 +14,7 @@ from typing import Any
 
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
+from discord.ext.commands import Bot
 
 from utils.funcs import get_guild_info, create_embed, cleanup_code, format_error, str_to_file
 from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
@@ -84,10 +88,9 @@ TrustedIds = BaseTable(
 )
 
 
-class DiscordClient(discord.Client):
+class DiscordClient(Bot):
     def __init__(self, test_guild, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.tree = app_commands.CommandTree(self)
         self.TEST_GUILD = test_guild
         self.guild_info: list[GuildInfo] = list()
         self.db_helper = DatabaseHelper(
@@ -98,6 +101,177 @@ class DiscordClient(discord.Client):
         self.db_loaded = False
         self.first_sync = False
         self.populated_forum_ids: list[int] = list()
+        self.owner = None
+        self.cogs_list: list[str] = list()
+
+    async def get_owner(self) -> discord.User:
+        if not self.owner:
+            info = await self.application_info()
+            self.owner = info.owner
+
+        return self.owner
+
+    async def sync_faction(self, faction: Faction):
+        forum_channel = self.get_channel(faction.id)
+        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+        subalignments = guild_info.subalignments
+
+        failed_roles = []
+        roles = []
+
+        guild_info_roles = [r for r in guild_info.roles if r.faction.id != faction.id]
+        pre_faction_roles = [r for r in guild_info.roles if r.faction.id == faction.id]
+        pre_faction_roles_ids = [r.id for r in pre_faction_roles]
+
+        roles += pre_faction_roles
+
+        await self.add_archived_threads(forum_channel)
+
+        for thread in forum_channel.threads:
+            subalignment = None
+
+            if thread.flags.pinned:
+                continue
+
+            if thread.id in pre_faction_roles_ids:
+                continue
+
+            for tag in thread.applied_tags:
+                for subalign in subalignments:
+                    if subalign.id == tag.id:
+                        subalignment = subalign
+                        break
+                if subalignment:
+                    break
+
+            if subalignment:
+                forum_tags = [str(t).lower() for t in thread.applied_tags if t.id != subalignment.id]
+                roles.append(Role(thread.name, thread.id, faction, subalignment, set(forum_tags)))
+
+            if not subalignment:
+                failed_roles.append(thread)
+
+        guild_info_roles += roles
+        guild_info.roles = guild_info_roles
+
+        try:
+            self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
+        except ValueError:
+            pass
+
+        self.guild_info.append(guild_info)
+
+        return roles, failed_roles
+
+    async def sync_infotags(self, info_category: InfoCategory):
+        forum_channel = self.get_channel(info_category.id)
+        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+
+        failed_tags = []
+        tags = []
+
+        guild_info_tags = [r for r in guild_info.info_tags if r.id != info_category.id]
+        guild_info_tags_ids = [t.id for t in guild_info_tags]
+
+        await self.add_archived_threads(forum_channel)
+
+        for thread in forum_channel.threads:
+            if thread.flags.pinned:
+                continue
+
+            if thread.id in guild_info_tags_ids:
+                continue
+
+            tags.append(InfoTag(name=thread.name, id=thread.id))
+
+        guild_info_tags += tags
+        guild_info.info_tags = guild_info_tags
+
+        try:
+            self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
+        except ValueError:
+            pass
+
+        self.guild_info.append(guild_info)
+
+        return tags, failed_tags
+
+    async def sync_guild(self, guild: discord.Guild) -> dict[int, list[discord.Thread]]:
+        guild_info = [g for g in self.guild_info if g.guild_id == guild.id]
+        if not guild_info:
+            return {}
+
+        failed_factions = {}
+
+        for faction in copy.deepcopy(guild_info[0].factions):
+            _, failed_roles = await self.sync_faction(faction)
+            failed_factions[faction.id] = failed_roles
+
+        for info_cat in guild_info[0].info_categories:
+            await self.sync_infotags(info_cat)
+
+        return failed_factions
+
+    def get_faction_roles(self, faction: Faction) -> list[Role]:
+        forum_channel = self.get_channel(faction.id)
+        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+        roles = []
+
+        for role in guild_info.roles:
+            if role.faction.id == faction.id:
+                roles.append(role)
+
+        return roles
+
+    def get_faction_subalignments(self, faction: Faction) -> list[Subalignment]:
+        forum_channel = self.get_channel(faction.id)
+        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+
+        subalignments = []
+        for tag in forum_channel.available_tags:
+            for subalignment in guild_info.subalignments:
+                if tag.id == subalignment.id:
+                    subalignments.append(subalignment)
+
+        return subalignments
+
+    def get_subalignment_roles(self, subalignment: Subalignment) -> list[Role]:
+        for channel in self.get_all_channels():
+            if isinstance(channel, discord.ForumChannel):
+                for tag in channel.available_tags:
+                    if tag.id == subalignment.id:
+                        guild = channel.guild
+
+        guild_info = [g for g in self.guild_info if g.guild_id == guild.id][0]
+        roles = []
+
+        for role in guild_info.roles:
+            if role.subalignment.id == subalignment.id:
+                roles.append(role)
+
+        return roles
+
+    def get_subalignment_faction(self, subalignment: Subalignment) -> Faction:
+        for channel in self.get_all_channels():
+            if isinstance(channel, discord.ForumChannel):
+                for tag in channel.available_tags:
+                    if tag.id == subalignment.id:
+                        guild = channel.guild
+                        guild_info = [g for g in self.guild_info if g.guild_id == guild.id][0]
+                        faction = [f for f in guild_info.factions if f.id == channel.id][0]
+
+                        return faction
+
+    async def add_archived_threads(self, forum_channel: discord.ForumChannel, force: bool = False):
+        if forum_channel.id in self.populated_forum_ids and not force:
+            return
+
+        async for thread in forum_channel.archived_threads(limit=None):
+            # Add to dpy's internal cache lol
+            thread.guild._threads[thread.id] = thread
+
+        if not force:
+            self.populated_forum_ids.append(forum_channel.id)
 
     async def start_database(self):
         await self.db_helper.startup()

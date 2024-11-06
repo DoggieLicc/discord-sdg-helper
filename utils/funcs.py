@@ -1,4 +1,5 @@
 import io
+import os
 import traceback
 import discord
 
@@ -66,3 +67,22 @@ def format_error(author: discord.User, error: Exception) -> discord.Embed:
     return embed
 
 
+async def mod_check(interaction: discord.Interaction) -> bool:
+    guild_info = get_guild_info(interaction)
+
+    owner = await interaction.client.get_owner()
+
+    if interaction.user == owner:
+        return True
+
+    if interaction.user.guild_permissions.manage_channels:
+        return True
+
+    if interaction.user.id in guild_info.trusted_ids:
+        return True
+
+    for role in interaction.user.roles:
+        if role.id in guild_info.trusted_ids:
+            return True
+
+    return False

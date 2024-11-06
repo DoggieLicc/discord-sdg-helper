@@ -2,6 +2,8 @@ import copy
 import random
 
 from dataclasses import dataclass
+
+import utils
 from utils import Role
 
 
@@ -330,7 +332,7 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
             valid_roles = modifier.modify_valid_roles(valid_roles, roles)
 
         if not valid_roles:
-            raise Exception(f'No valid roles for {slot}')
+            raise utils.SDGException(f'No valid roles for {slot}')
 
         roles.append(random.choice(valid_roles))
 
