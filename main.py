@@ -428,7 +428,13 @@ async def error_handler(interaction: discord.Interaction, error: app_commands.Ap
         color=discord.Color.brand_red()
     )
 
-    await interaction.response.send_message(embed=embed)
+    try:
+        await interaction.response.send_message(embed=embed)
+    except discord.InteractionResponded:
+        try:
+            await interaction.channel.send(embed=embed)
+        except discord.DiscordException:
+            print(f'Unable to respond to exception in {interaction.channel.name} ({interaction.channel.id})')
 
 
 @faction_cmds.command(name='add')
