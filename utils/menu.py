@@ -37,7 +37,7 @@ class PaginatedMenu(View):
 
     async def update_page(self, interaction: discord.Interaction):
         contents = await self.get_page_contents()
-        await interaction.message.edit(view=self, **contents)
+        await interaction.edit_original_response(view=self, **contents)
 
     @discord.ui.button(emoji='\U000023EA', style=discord.ButtonStyle.blurple)
     async def far_left(self, interaction: discord.Interaction, button: Button):
@@ -59,8 +59,7 @@ class PaginatedMenu(View):
             child.disabled = True
         self._children = children
 
-        if self.message:
-            await self.message.edit(view=self)
+        await interaction.edit_original_response(view=self)
 
     @discord.ui.button(emoji='\U000025B6', style=discord.ButtonStyle.blurple)
     async def right(self, interaction: discord.Interaction, button: Button):
@@ -92,7 +91,10 @@ class PaginatedMenu(View):
         self._children = children
 
         if self.message:
-            await self.message.edit(view=self)
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
     async def on_error(self, interaction: Interaction, error: Exception, item: Item[Any], /) -> None:
         print(type(error), error)
