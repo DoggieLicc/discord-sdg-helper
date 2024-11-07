@@ -48,10 +48,12 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
     @app_commands.command(name='view')
     @app_commands.describe(subalignment='The subalignment to view')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def subalignment_view(
             self,
             interaction: discord.Interaction,
-            subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer]
+            subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer],
+            ephemeral: bool = False
     ):
         """Get info for a subalignment"""
         roles = self.client.get_subalignment_roles(subalignment)
@@ -70,7 +72,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
                         f'**Amount of roles:** {len(roles)}'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
     @app_commands.command(name='remove')
     @app_commands.check(mod_check)

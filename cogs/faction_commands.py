@@ -50,10 +50,12 @@ class FactionCog(commands.GroupCog, group_name='faction'):
 
     @app_commands.command(name='view')
     @app_commands.describe(faction='The faction to view')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def faction_view(
             self,
             interaction: discord.Interaction,
-            faction: app_commands.Transform[Faction, utils.FactionTransformer]
+            faction: app_commands.Transform[Faction, utils.FactionTransformer],
+            ephemeral: bool = False
     ):
         """Get faction info"""
         roles = self.client.get_faction_roles(faction)
@@ -68,7 +70,7 @@ class FactionCog(commands.GroupCog, group_name='faction'):
 
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
     @app_commands.command(name='remove')
     @app_commands.describe(faction='The faction to remove from the bot database')

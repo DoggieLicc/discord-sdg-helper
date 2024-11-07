@@ -24,6 +24,7 @@ class RandomCog(commands.GroupCog, group_name='random'):
         include_tags='Only include roles containing atleast one of the provided comma-seperated list of forum tags')
     @app_commands.describe(
         exclude_tags='Exclude roles that contain atleast one of the provided comma-seperated list of forum tags')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def random_roles(
             self,
             interaction: Interaction,
@@ -32,7 +33,8 @@ class RandomCog(commands.GroupCog, group_name='random'):
             subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer] | None = None,
             individuality: bool = False,
             include_tags: str | None = '',
-            exclude_tags: str | None = ''
+            exclude_tags: str | None = '',
+            ephemeral: bool = False
     ):
         """Get random roles!"""
         guild_info = utils.get_guild_info(interaction)
@@ -86,16 +88,18 @@ class RandomCog(commands.GroupCog, group_name='random'):
             description=chosen_roles_str
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
     @app_commands.command(name='faction')
     @app_commands.describe(amount='Amount of factions to generate, defaults to 1')
     @app_commands.describe(individuality='Whether to generate unique factions, defaults to false')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def random_faction(
             self,
             interaction: Interaction,
             amount: app_commands.Range[int, 1, 100] = 1,
             individuality: bool = False,
+            ephemeral: bool = False
     ):
         """Generate random factions"""
         guild_info = utils.get_guild_info(interaction)
@@ -120,18 +124,20 @@ class RandomCog(commands.GroupCog, group_name='random'):
             description=chosen_factions_str
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
     @app_commands.command(name='members')
     @app_commands.describe(amount='Amount of members to generate, defaults to 1')
     @app_commands.describe(individuality='Whether to generate unique members, defaults to true')
     @app_commands.describe(role='Only get members from this role')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def random_members(
             self,
             interaction: Interaction,
             amount: app_commands.Range[int, 1, 100] = 1,
             individuality: bool = True,
-            role: discord.Role | None = None
+            role: discord.Role | None = None,
+            ephemeral: bool = False
     ):
         """Get random server members!"""
         valid_members = role.members if role else list(interaction.guild.members)
@@ -154,7 +160,7 @@ class RandomCog(commands.GroupCog, group_name='random'):
             description=chosen_members_str
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
 
 async def setup(bot):

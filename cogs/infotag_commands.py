@@ -74,11 +74,13 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
     @app_commands.command(name='view')
     @app_commands.describe(info_category='The infotag category to get the tag of')
     @app_commands.describe(info_tag='The infotag to view')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def infotag_view(
             self,
             interaction: discord.Interaction,
             info_category: app_commands.Transform[InfoCategory, utils.InfoCategoryTransformer],
-            info_tag: app_commands.Transform[InfoTag, utils.InfoTagTransformer]
+            info_tag: app_commands.Transform[InfoTag, utils.InfoTagTransformer],
+            ephemeral: bool = False
     ):
         """View an infotag"""
         info_cat_channel = interaction.guild.get_channel_or_thread(info_category.id)
@@ -98,7 +100,7 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
             description=f'{info_tag_thread.mention}\n\n' + info_tag_msg.content
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
 
 async def setup(bot):

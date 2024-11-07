@@ -36,7 +36,13 @@ class MiscCog(commands.Cog):
     @app_commands.command(name='role')
     @app_commands.guild_only()
     @app_commands.describe(role='The role to view')
-    async def get_role(self, interaction: discord.Interaction, role: app_commands.Transform[Role, utils.RoleTransformer]):
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
+    async def get_role(
+            self,
+            interaction: discord.Interaction,
+            role: app_commands.Transform[Role, utils.RoleTransformer],
+            ephemeral: bool = False
+    ):
         """Get info on a role"""
         thread_channel = interaction.guild.get_channel_or_thread(role.id)
         starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
@@ -51,7 +57,7 @@ class MiscCog(commands.Cog):
                         f'{role_str[:4000]}'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
     @app_commands.command(name='maintenance')
     @app_commands.guild_only()
@@ -167,7 +173,8 @@ class MiscCog(commands.Cog):
             faction: app_commands.Transform[Faction, utils.FactionTransformer] | None = None,
             subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer] | None = None,
             include_tags: str | None = '',
-            exclude_tags: str | None = ''
+            exclude_tags: str | None = '',
+            ephemeral: bool = False
     ):
         """Lists all roles that fit the filters"""
         guild_info = get_guild_info(interaction)
@@ -218,7 +225,7 @@ class MiscCog(commands.Cog):
         if view.max_page == 1:
             view = discord.utils.MISSING
 
-        await interaction.response.send_message(view=view, **contents)
+        await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
 
 
 async def setup(bot):
