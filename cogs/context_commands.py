@@ -55,6 +55,9 @@ class ContextMenuCog(commands.Cog):
 
         roles_str = '\n'.join(f'{r.name} (<#{r.id}>)' for r in roles)
 
+        if not roles_str:
+            raise SDGException('No slots specified in message!')
+
         await interaction.response.send_message(roles_str)
 
     @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
