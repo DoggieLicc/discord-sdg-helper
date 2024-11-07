@@ -16,7 +16,7 @@ from discord import app_commands, Interaction
 from discord.app_commands import Choice
 from discord.ext.commands import Bot
 
-from utils.funcs import get_guild_info, create_embed, cleanup_code, format_error, str_to_file
+from utils.funcs import get_guild_info, create_embed
 from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
 
 
@@ -601,96 +601,6 @@ class ForumTagTransformer(ChoiceTransformer):
         faction_channel = interaction.guild.get_channel(faction_id)
 
         return faction_channel.get_tag(int(value))
-
-
-class DevEval(discord.ui.Modal, title='Dev Eval'):
-    code = discord.ui.TextInput(label='Code', style=discord.TextStyle.paragraph)
-
-    async def eval_code(self, interaction: discord.Interaction) -> discord.Embed | discord.File:
-        env = {
-            'client': interaction.client,
-            'interaction': interaction,
-            'channel': interaction.channel,
-            'user': interaction.user,
-            'guild': interaction.guild,
-        }
-
-        env.update(globals())
-        code = cleanup_code(self.code.value)
-        to_compile = f'async def func():\n{textwrap.indent(code, "  ")}'
-        stdout = io.StringIO()
-
-        try:
-            exec(to_compile, env)
-        except Exception as e:
-            embed = format_error(interaction.user, e)
-            return embed
-
-        func = env['func']
-
-        try:
-            with redirect_stdout(stdout):
-                ret = await func()
-
-        except Exception as e:
-            embed = format_error(interaction.user, e)
-            return embed
-
-        else:
-            value = stdout.getvalue()
-            if ret is None:
-                if value:
-                    if len(value) < 4000:
-                        embed = create_embed(
-                            interaction.user,
-                            title="Exec result:",
-                            description=f'```py\n{value}\n```'
-                        )
-
-                        return embed
-                    else:
-                        return str_to_file(value)
-
-                else:
-                    embed = create_embed(interaction.user, title="Eval code executed!")
-                    return embed
-
-            else:
-                if isinstance(ret, discord.Embed):
-                    return ret
-
-                if isinstance(ret, discord.File):
-                    return ret
-
-                if isinstance(ret, discord.Asset):
-                    embed = create_embed(interaction.user, image=ret)
-                    return embed
-
-                else:
-                    ret = repr(ret)
-
-                    if len(ret) < 4000:
-                        embed = create_embed(
-                            interaction.user,
-                            title="Exec result:",
-                            description=f'```py\n{ret}\n```'
-                        )
-
-                    else:
-                        return str_to_file(ret)
-
-                    return embed
-
-    async def on_submit(self, interaction: discord.Interaction):
-        ret = await self.eval_code(interaction)
-        code = cleanup_code(self.code.value)
-        formatted_code = '```py\n' + code + '\n```'
-
-        if isinstance(ret, discord.Embed):
-            await interaction.response.send_message(formatted_code, embed=ret)
-
-        if isinstance(ret, discord.File):
-            await interaction.response.send_message(formatted_code, files=[ret])
 
 
 class PollSelect(discord.ui.Select):

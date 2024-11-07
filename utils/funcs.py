@@ -49,24 +49,6 @@ def fix_url(url):
     return str(url)
 
 
-def cleanup_code(content):
-    if content.startswith('```') and content.endswith('```'):
-        return '\n'.join(content.split('\n')[1:-1])
-    return content.strip('` \n')
-
-
-def format_error(author: discord.User, error: Exception) -> discord.Embed:
-    error_lines = traceback.format_exception(type(error), error, error.__traceback__)
-    embed = create_embed(
-        author,
-        title="Error!",
-        description=f'```py\n{"".join(error_lines)}\n```',
-        color=discord.Color.red()
-    )
-
-    return embed
-
-
 async def mod_check(interaction: discord.Interaction) -> bool:
     guild_info = get_guild_info(interaction)
 
