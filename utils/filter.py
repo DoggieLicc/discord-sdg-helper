@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import random
 
@@ -149,6 +151,49 @@ class IndividualityModifier(Modifier):
 
 
 @dataclass
+class WeightChanger:
+    roles: list[Role]
+    argument: int
+
+    def get_weight(self, prev_weight: int) -> int:
+        ...
+
+    def check_role(self, role) -> bool:
+        return role in self.roles
+
+
+
+@dataclass
+class WeightSet(WeightChanger):
+    def get_weight(self, prev_weight: int) -> int:
+        return self.argument
+
+
+@dataclass
+class WeightAdder(WeightChanger):
+    def get_weight(self, prev_weight: int) -> int:
+        return prev_weight + self.argument
+
+
+@dataclass
+class WeightSubtractor(WeightChanger):
+    def get_weight(self, prev_weight: int) -> int:
+        return prev_weight - self.argument
+
+
+@dataclass
+class WeightDivider(WeightChanger):
+    def get_weight(self, prev_weight: int) -> int | float:
+        return prev_weight / self.argument
+
+
+@dataclass
+class WeightMultiplier(WeightChanger):
+    def get_weight(self, prev_weight: int):
+        return prev_weight * self.argument
+
+
+@dataclass
 class Slot:
     filters: list[Filter]
     ignore_global: bool
@@ -159,6 +204,7 @@ class Rolelist:
     slots: list[Slot]
     global_filters: list[Filter]
     modifiers: list[Modifier]
+    weight_changers: list[WeightChanger]
 
 
 filter_dict = {
@@ -289,11 +335,60 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
     raise Exception('Invalid modifier')
 
 
+def get_weight_chnager(in_str, all_roles: list[Role]) -> WeightChanger:
+    arguments = in_str.split(':')
+    parameter = arguments[1].lower().strip()
+    symbol = parameter[0]
+    number = int(parameter[1:])
+    
+    roles_str = arguments[0].lower().strip()
+    filters = get_str_filters(roles_str).filters
+    roles = process_filters(all_roles, filters)
+    
+    if symbol.isnumeric():
+        return WeightSet(roles, int(parameter))
+    
+    if symbol == '+':
+        return WeightAdder(roles, number)
+    
+    if symbol == '-':
+        return WeightSubtractor(roles, number)
+    
+    if symbol in ['*', 'x']:
+        return WeightMultiplier(roles, number)
+    
+    if symbol == '/':
+        return WeightDivider(roles, number)
+
+
+def get_role_weight(role: Role, weight_changers: list[WeightChanger]) -> int:
+    valid_weights_changers = [w for w in weight_changers if w.check_role(role)]
+    weight = 10
+
+    for changer in valid_weights_changers:
+        weight = changer.get_weight(weight)
+
+    if weight < 1:
+        raise utils.SDGException(f'Weight of {role.name} was resolved to {weight}, under 1')
+
+    return weight
+
+
+def get_all_weights(roles: list[Role], weight_changers: list[WeightChanger]) -> list[int]:
+    weights = []
+
+    for role in roles:
+        weights.append(get_role_weight(role, weight_changers))
+
+    return weights
+
+
 def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
     message_lines = message_str.splitlines()
     global_filters = []
     slots = []
     modifiers = []
+    weights = []
     for line in message_lines:
         if not line:
             continue
@@ -306,11 +401,15 @@ def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
             modifier_str = line[1:]
             modifiers.append(get_str_modifier(modifier_str, all_roles))
             continue
+        if line.startswith('='):
+            weight_str = line[1:]
+            weights.append(get_weight_chnager(weight_str, all_roles))
+            continue
 
         slot = get_str_filters(line)
         slots.append(slot)
 
-    return Rolelist(slots=slots, global_filters=global_filters, modifiers=modifiers)
+    return Rolelist(slots=slots, global_filters=global_filters, modifiers=modifiers, weight_changers=weights)
 
 
 def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list[Role]:
@@ -334,7 +433,12 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
         if not valid_roles:
             raise utils.SDGException(f'No valid roles for {slot}')
 
-        roles.append(random.choice(valid_roles))
+        if not rolelist.weight_changers:
+            roles.append(random.choice(valid_roles))
+        else:
+            weights = get_all_weights(valid_roles, rolelist.weight_changers)
+            role = random.choices(valid_roles, weights=weights, k=1)[0]
+            roles.append(role)
 
     return roles
 
