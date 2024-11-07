@@ -73,7 +73,7 @@ class RandomCog(commands.GroupCog, group_name='random'):
         chosen_roles = []
         for _ in range(amount):
             if len(valid_roles) <= 0:
-                raise app_commands.AppCommandError('Not enough valid roles')
+                raise utils.SDGException('Not enough valid roles')
 
             chosen_role = random.choice(valid_roles)
             chosen_roles.append(chosen_role)
@@ -109,7 +109,7 @@ class RandomCog(commands.GroupCog, group_name='random'):
         chosen_factions = []
         for _ in range(amount):
             if len(valid_factions) <= 0:
-                raise app_commands.AppCommandError('Not enough valid factions')
+                raise utils.SDGException('Not enough valid factions')
 
             chosen_faction = random.choice(valid_factions)
             chosen_factions.append(chosen_faction)
@@ -145,7 +145,7 @@ class RandomCog(commands.GroupCog, group_name='random'):
         chosen_members = []
         for _ in range(amount):
             if len(valid_members) <= 0:
-                raise app_commands.AppCommandError('Not enough valid members')
+                raise utils.SDGException('Not enough valid members')
 
             chosen_member = random.choice(valid_members)
             chosen_members.append(chosen_member)
