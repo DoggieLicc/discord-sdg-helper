@@ -23,6 +23,7 @@ class ErrorCog(commands.Cog):
 
     async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         error_message = None
+        ephemeral = utils.get_interaction_parameter(interaction, 'ephemeral', False)
 
         if isinstance(error, app_commands.CommandInvokeError):
             error = error.original
@@ -81,7 +82,7 @@ class ErrorCog(commands.Cog):
         )
 
         try:
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
         except (discord.InteractionResponded, discord.NotFound):
             try:
                 await interaction.channel.send(embed=embed)

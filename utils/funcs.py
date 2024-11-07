@@ -68,3 +68,21 @@ async def mod_check(interaction: discord.Interaction) -> bool:
             return True
 
     return False
+
+
+def get_interaction_parameter(interaction: discord.Interaction, name: str, default=None):
+    value = None
+    try:
+        options = interaction.data.get('options')
+        value = discord.utils.find(lambda o: o['name'] == name, options)
+        if not value:
+            options = options[0]['options']
+            value = discord.utils.find(lambda o: o['name'] == name, options)
+    except (TypeError, KeyError):
+        pass
+
+    if not value:
+        return default
+
+    return value['value']
+
