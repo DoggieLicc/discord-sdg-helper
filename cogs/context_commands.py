@@ -71,9 +71,18 @@ class ContextMenuCog(commands.Cog):
         """Generate mod threads using mentions from the provided message"""
 
         message_mentions = message.mentions
+        role_mentions = message.role_mentions
+
+        for role in role_mentions:
+            for member in role.members:
+                if member not in message_mentions:
+                    message_mentions.append(member)
+
+        if not message_mentions:
+            raise SDGException('No users or roles are mentioned in that message!')
 
         if not interaction.channel.type == discord.ChannelType.text:
-            raise app_commands.AppCommandError('Can\'t use in non-text channels!')
+            raise SDGException('Can\'t use in non-text channels!')
 
         await interaction.response.defer()
 
