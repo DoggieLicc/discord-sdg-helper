@@ -317,6 +317,9 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
         else:
             roles = all_roles
 
+        if not roles:
+            raise utils.SDGException(f'No roles for {roles_str}')
+
         return IndividualityModifier(roles)
 
     if modifier_name in ['limit', 'lim', 'rolelimit']:
@@ -324,12 +327,20 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
         limit = int(arguments[2].strip()) if len(arguments) >= 3 else 1
         filters = get_str_filters(roles_str).filters
         roles = process_filters(all_roles, filters)
+
+        if not roles:
+            raise utils.SDGException(f'No roles for {roles_str}')
+
         return LimitModifier(roles, limit)
 
     if modifier_name in ['exclusive', 'mutualexclusive', 'mutualexclusivity', 'mutexclusive', 'mexc']:
         roles_str = arguments[1].strip()
         filters = get_str_filters(roles_str).filters
         roles = process_filters(all_roles, filters)
+
+        if not roles:
+            raise utils.SDGException(f'No roles for {roles_str}')
+
         return MutualExclusiveModifier(roles)
 
     raise Exception('Invalid modifier')
@@ -344,6 +355,9 @@ def get_weight_chnager(in_str, all_roles: list[Role]) -> WeightChanger:
     roles_str = arguments[0].lower().strip()
     filters = get_str_filters(roles_str).filters
     roles = process_filters(all_roles, filters)
+
+    if not roles:
+        raise utils.SDGException(f'No roles for {roles_str} in ={in_str}')
     
     if symbol.isnumeric():
         return WeightSet(roles, int(parameter))
