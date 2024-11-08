@@ -71,7 +71,7 @@ class ContextMenuCog(commands.Cog):
             role = [r for r in guild_info.roles if r.id == channel_id]
 
             if role:
-                cleaned_content = cleaned_content.replace(match_str, f'${role[0].name}')
+                cleaned_content = cleaned_content.replace(match_str, f'%{role[0].name}')
 
         rolelist_info = utils.get_rolelist(cleaned_content, all_roles=guild_info.roles)
         roles = generate_rolelist_roles(rolelist_info, guild_info.roles)

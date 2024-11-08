@@ -382,8 +382,8 @@ def get_role_weight(role: Role, weight_changers: list[WeightChanger]) -> int:
     for changer in valid_weights_changers:
         weight = changer.get_weight(weight)
 
-    if weight < 1:
-        raise utils.SDGException(f'Weight of {role.name} was resolved to {weight}, under 1')
+    if weight <= 0:
+        raise utils.SDGException(f'Weight of {role.name} was resolved to {weight}, under or equal to 0')
 
     return weight
 
