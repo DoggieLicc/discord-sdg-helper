@@ -234,6 +234,9 @@ def get_str_filters(slot_str: str) -> Slot:
         if char == r'\'':
             continue
 
+        if char == ' ' and not filter_chars:
+            continue
+
         if char in filter_dict.keys():
             if filter_chars and not next_filter:
                 next_filter = TagFilter
