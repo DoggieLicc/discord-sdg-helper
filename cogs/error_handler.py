@@ -63,7 +63,7 @@ class ErrorCog(commands.Cog):
                     color=discord.Color.red()
                 )
 
-                owner_embed.add_field(name='Unhandled Error!:', value=f"Error {error}", inline=False)
+                owner_embed.add_field(name='Unhandled Error!:', value=f"Error {error[:1000]}", inline=False)
                 owner_embed.add_field(name='Command:', value=str(interaction.data)[:1000], inline=False)
 
                 owner_embed.add_field(
@@ -77,7 +77,7 @@ class ErrorCog(commands.Cog):
         embed = utils.create_embed(
             interaction.user,
             title='Error while running command!',
-            description=error_message,
+            description=error_message[:4000],
             color=discord.Color.brand_red()
         )
 
