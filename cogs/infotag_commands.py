@@ -47,11 +47,9 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
         """Removes an infotag"""
         guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
         guild_info.info_categories.remove(info_category)
-        info_category_channel = interaction.guild.get_channel(info_category.id)
-        thread_ids = [t.id for t in info_category_channel.threads]
 
-        for info_tag in guild_info.info_tags:
-            if info_tag.id in thread_ids:
+        for info_tag in guild_info.info_tags.copy():
+            if info_tag.info_category == info_category:
                 guild_info.info_tags.remove(info_tag)
 
         self.client.replace_guild_info(guild_info)

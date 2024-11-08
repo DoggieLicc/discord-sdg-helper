@@ -71,7 +71,6 @@ InfotagTable = BaseTable(
     ]
 )
 
-
 TrustedIds = BaseTable(
     name='trusted_ids',
     columns=[
@@ -177,7 +176,7 @@ class DiscordClient(Bot):
             if thread.id in guild_info_tags_ids:
                 continue
 
-            tags.append(InfoTag(name=thread.name, id=thread.id))
+            tags.append(InfoTag(name=thread.name, id=thread.id, info_category=info_category))
 
         guild_info_tags += tags
         guild_info.info_tags = guild_info_tags
@@ -269,11 +268,11 @@ class DiscordClient(Bot):
 
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
-                    for row in await cursor.execute(f'SELECT * FROM {table_name}'):
-                        channel_id: int = row['channel_id']
-                        item_name: str = row['name']
+                for row in await cursor.execute(f'SELECT * FROM {table_name}'):
+                    channel_id: int = row['channel_id']
+                    item_name: str = row['name']
 
-                        items[channel_id] = item_name
+                    items[channel_id] = item_name
 
             return items
 
@@ -423,6 +422,7 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
+
 @dataclass
 class Faction(SDGObject):
     ...
@@ -440,7 +440,8 @@ class InfoCategory(SDGObject):
 
 @dataclass
 class InfoTag(SDGObject):
-    ...
+    info_category: InfoCategory
+
 
 @dataclass
 class Role(SDGObject):
@@ -476,7 +477,7 @@ class ChoiceTransformer(app_commands.Transformer):
         ...
 
     async def autocomplete(
-        self, interaction: Interaction, value: int | float | str, /
+            self, interaction: Interaction, value: int | float | str, /
     ) -> list[Choice[int | float | str]]:
         choices = self.get_choices(interaction)
         if not value:
@@ -545,16 +546,10 @@ class InfoTagTransformer(ChoiceTransformer):
 
         info_cat_id = int(info_cat_id)
 
-        info_cat_channel = interaction.guild.get_channel(info_cat_id)
-
         choice_list = []
-        for thread in info_cat_channel.threads:
-            info_tag = [i for i in guild_info.info_tags if i.id == thread.id]
-            if info_tag:
-                choice_list.append(app_commands.Choice(
-                    name=info_tag[0].name,
-                    value=str(info_tag[0].id)
-                ))
+        for info_tag in guild_info.info_tags:
+            if info_tag.info_category.id == info_cat_id:
+                choice_list.append(app_commands.Choice(name=info_tag.name,value=str(info_tag.id)))
 
         return choice_list
 
@@ -640,7 +635,7 @@ class PollSelect(discord.ui.Select):
 
 
 class PollSelectButton(discord.ui.Button):
-    def __init__(self, allowed_user: discord.Member,*args, **kwargs):
+    def __init__(self, allowed_user: discord.Member, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.allowed_user = allowed_user
         self.style = discord.ButtonStyle.danger
@@ -657,7 +652,7 @@ class PollSelectButton(discord.ui.Button):
 
             counts = Counter(selected_options.values())
             counts_msg = '\n'.join(f'**"{discord.utils.escape_markdown(c[0])}"** got {c[1]} votes!' for c in
-                          counts.most_common())
+                                   counts.most_common())
 
             selected_msg = '\n'.join(f'<@{k}> voted {v}' for k, v in selected_options.items())
 
