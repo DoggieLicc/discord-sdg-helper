@@ -80,7 +80,14 @@ class ContextMenuCog(commands.Cog):
 
         roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
 
-        roles_str = '\n'.join(f'{r.name} (<#{r.id}>)' for r in roles)
+        roles_str_list = []
+
+        for role in roles:
+            faction_channel = self.client.get_channel(role.faction.id)
+            sub_tag = faction_channel.get_tag(role.subalignment.id)
+            roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
+
+        roles_str = '\n'.join(roles_str_list)
 
         if not roles_str:
             raise SDGException('No slots specified in message!')
