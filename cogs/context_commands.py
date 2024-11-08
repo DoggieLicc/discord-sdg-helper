@@ -5,7 +5,7 @@ from discord.ext import commands
 from utils import SDGException, generate_rolelist_roles
 
 import utils
-
+import re
 
 class ContextMenuCog(commands.Cog):
     def __init__(self, client):
@@ -38,6 +38,9 @@ class ContextMenuCog(commands.Cog):
         cleaned_content = message.content
         guild_info = utils.get_guild_info(interaction)
 
+        channel_link_regex = (r"https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?P<guild_id>[0-9]{"
+                              r"15,19})\/(?P<channel_id>[0-9]{15,19})?")
+
         for channel in channel_mentions:
             if isinstance(channel, discord.ForumChannel):
                 faction = [f for f in guild_info.factions if f.id == channel.id]
@@ -49,6 +52,26 @@ class ContextMenuCog(commands.Cog):
                 if not role:
                     raise SDGException('Thread isn\'t a assigned to a role!')
                 cleaned_content = cleaned_content.replace(channel.mention, f'%{role[0].name}')
+
+        for match in re.finditer(channel_link_regex, cleaned_content):
+            guild_id = int(match.group('guild_id'))
+            channel_id = int(match.group('channel_id'))
+
+            match_str = match.group()
+
+            if guild_id != interaction.guild_id:
+                continue
+
+            faction = [f for f in guild_info.factions if f.id == channel_id]
+
+            if faction:
+                cleaned_content = cleaned_content.replace(match_str, f'${faction[0].name}')
+                continue
+
+            role = [r for r in guild_info.roles if r.id == channel_id]
+
+            if role:
+                cleaned_content = cleaned_content.replace(match_str, f'${role[0].name}')
 
         rolelist_info = utils.get_rolelist(cleaned_content, all_roles=guild_info.roles)
         roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
