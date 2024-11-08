@@ -30,12 +30,7 @@ class TrustCog(commands.GroupCog, group_name='trust'):
 
         guild_info.trusted_ids.append(trustee.id)
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         await self.client.add_trusted_id_in_db(trustee.id, interaction.guild_id)
 
@@ -65,12 +60,7 @@ class TrustCog(commands.GroupCog, group_name='trust'):
 
             return await interaction.response.send_message(embed=embed)
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         await self.client.delete_trusted_id_in_db(trustee.id)
 

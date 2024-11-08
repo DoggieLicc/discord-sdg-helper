@@ -28,12 +28,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
         subalignment = Subalignment(forum_tag.name, forum_tag.id)
         guild_info.subalignments.append(subalignment)
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             interaction.user,
@@ -92,12 +87,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
         guild_info.subalignments.remove(subalignment)
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             interaction.user,

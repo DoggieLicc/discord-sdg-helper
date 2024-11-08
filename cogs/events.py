@@ -31,7 +31,7 @@ class EventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
-        guild_info = [i for i in self.client.guild_info if i.guild_id == thread.guild.id]
+        guild_info = self.client.get_guild_info(thread.guild.id)
         if not guild_info:
             return
 
@@ -49,7 +49,7 @@ class EventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
-        guild_info = [i for i in self.client.guild_info if i.guild_id == guild.id]
+        guild_info = self.client.get_guild_info(guild.id)
         if guild_info:
             return
 
@@ -65,7 +65,7 @@ class EventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_thread_update(self, payload: discord.RawThreadUpdateEvent):
-        guild_info = [i for i in self.client.guild_info if i.guild_id == payload.guild_id]
+        guild_info = self.client.get_guild_info(payload.guild_id)
         if not guild_info:
             return
 
@@ -91,13 +91,12 @@ class EventsCog(commands.Cog):
             guild_info.info_tags = infotags
 
         if faction or infotag:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == payload.guild_id][0])
-            self.client.guild_info.append(guild_info)
+            self.client.replace_guild_info(guild_info)
             await self.client.sync_guild(guild)
 
     @commands.Cog.listener()
     async def on_raw_thread_delete(self, payload: discord.RawThreadDeleteEvent):
-        guild_info = [i for i in self.client.guild_info if i.guild_id == payload.guild_id]
+        guild_info = self.client.get_guild_info(payload.guild_id)
         if not guild_info:
             return
 
@@ -114,8 +113,7 @@ class EventsCog(commands.Cog):
             guild_info.info_tags = [t for t in guild_info.info_tags if t.id != payload.thread_id]
 
         if infotag or faction:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == payload.guild_id][0])
-            self.client.guild_info.append(guild_info)
+            self.client.replace_guild_info(guild_info)
 
 
 async def setup(bot):

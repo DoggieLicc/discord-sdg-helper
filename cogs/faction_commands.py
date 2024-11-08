@@ -31,12 +31,7 @@ class FactionCog(commands.GroupCog, group_name='faction'):
 
         guild_info.factions.append(faction_info)
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             interaction.user,
@@ -90,12 +85,7 @@ class FactionCog(commands.GroupCog, group_name='faction'):
         for role in faction_roles:
             guild_info.roles.remove(role)
 
-        try:
-            client.guild_info.remove([gi for gi in client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             user=interaction.user,

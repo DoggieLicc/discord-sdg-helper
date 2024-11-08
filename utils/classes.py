@@ -113,7 +113,7 @@ class DiscordClient(Bot):
 
     async def sync_faction(self, faction: Faction):
         forum_channel = self.get_channel(faction.id)
-        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+        guild_info = self.get_guild_info(forum_channel.guild.id)
         subalignments = guild_info.subalignments
 
         failed_roles = []
@@ -154,18 +154,13 @@ class DiscordClient(Bot):
         guild_info_roles += roles
         guild_info.roles = guild_info_roles
 
-        try:
-            self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
-        except ValueError:
-            pass
-
-        self.guild_info.append(guild_info)
+        self.replace_guild_info(guild_info)
 
         return roles, failed_roles
 
     async def sync_infotags(self, info_category: InfoCategory):
         forum_channel = self.get_channel(info_category.id)
-        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+        guild_info = self.get_guild_info(forum_channel.guild.id)
 
         failed_tags = []
         tags = []
@@ -187,34 +182,27 @@ class DiscordClient(Bot):
         guild_info_tags += tags
         guild_info.info_tags = guild_info_tags
 
-        try:
-            self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
-        except ValueError:
-            pass
-
-        self.guild_info.append(guild_info)
+        self.replace_guild_info(guild_info)
 
         return tags, failed_tags
 
     async def sync_guild(self, guild: discord.Guild) -> dict[int, list[discord.Thread]]:
-        guild_info = [g for g in self.guild_info if g.guild_id == guild.id]
-        if not guild_info:
-            return {}
+        guild_info = self.get_guild_info(guild.id)
 
         failed_factions = {}
 
-        for faction in copy.deepcopy(guild_info[0].factions):
+        for faction in copy.deepcopy(guild_info.factions):
             _, failed_roles = await self.sync_faction(faction)
             failed_factions[faction.id] = failed_roles
 
-        for info_cat in guild_info[0].info_categories:
+        for info_cat in guild_info.info_categories:
             await self.sync_infotags(info_cat)
 
         return failed_factions
 
     def get_faction_roles(self, faction: Faction) -> list[Role]:
         forum_channel = self.get_channel(faction.id)
-        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+        guild_info = self.get_guild_info(forum_channel.guild.id)
         roles = []
 
         for role in guild_info.roles:
@@ -225,7 +213,7 @@ class DiscordClient(Bot):
 
     def get_faction_subalignments(self, faction: Faction) -> list[Subalignment]:
         forum_channel = self.get_channel(faction.id)
-        guild_info = [g for g in self.guild_info if g.guild_id == forum_channel.guild.id][0]
+        guild_info = self.get_guild_info(forum_channel.guild.id)
 
         subalignments = []
         for tag in forum_channel.available_tags:
@@ -242,7 +230,7 @@ class DiscordClient(Bot):
                     if tag.id == subalignment.id:
                         guild = channel.guild
 
-        guild_info = [g for g in self.guild_info if g.guild_id == guild.id][0]
+        guild_info = self.get_guild_info(guild.id)
         roles = []
 
         for role in guild_info.roles:
@@ -257,7 +245,7 @@ class DiscordClient(Bot):
                 for tag in channel.available_tags:
                     if tag.id == subalignment.id:
                         guild = channel.guild
-                        guild_info = [g for g in self.guild_info if g.guild_id == guild.id][0]
+                        guild_info = self.get_guild_info(guild.id)
                         faction = [f for f in guild_info.factions if f.id == channel.id][0]
 
                         return faction
@@ -365,6 +353,21 @@ class DiscordClient(Bot):
             self.guild_info.append(guild_info)
 
         self.db_loaded = True
+
+    def replace_guild_info(self, guild_info: GuildInfo):
+        try:
+            self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
+        except ValueError:
+            pass
+
+        self.guild_info.append(guild_info)
+
+    def get_guild_info(self, guild_id: int) -> GuildInfo | None:
+        guild_info = [g for g in self.guild_info if g.guild_id == guild_id]
+        if guild_info:
+            return guild_info[0]
+
+        return None
 
     async def add_item_to_db(self, item: type[SDGObject], table_name: str):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:

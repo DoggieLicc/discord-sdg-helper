@@ -23,12 +23,7 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
         infotag_category = InfoCategory(name, forum_channel.id)
         guild_info.info_categories.append(infotag_category)
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
-
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             interaction.user,
@@ -50,15 +45,16 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
             info_category: app_commands.Transform[InfoCategory, utils.InfoCategoryTransformer],
     ):
         """Removes an infotag"""
-        guild_info = utils.get_guild_info(interaction)
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
         guild_info.info_categories.remove(info_category)
+        info_category_channel = interaction.guild.get_channel(info_category.id)
+        thread_ids = [t.id for t in info_category_channel.threads]
 
-        try:
-            self.client.guild_info.remove([gi for gi in self.client.guild_info if gi.guild_id == interaction.guild_id][0])
-        except ValueError:
-            pass
+        for info_tag in guild_info.info_tags:
+            if info_tag.id in thread_ids:
+                guild_info.info_tags.remove(info_tag)
 
-        self.client.guild_info.append(guild_info)
+        self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             interaction.user,
