@@ -231,7 +231,7 @@ def get_str_filters(slot_str: str) -> Slot:
 
     for char in slot_str:
 
-        if char == r'\'':
+        if char == r'\\' or char == r'`':
             continue
 
         if char == ' ' and not filter_chars:
