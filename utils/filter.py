@@ -231,7 +231,7 @@ def get_str_filters(slot_str: str) -> Slot:
 
     for char in slot_str:
 
-        if char == r'\'':
+        if char == r'\\' or char == r'`':
             continue
 
         if char == ' ' and not filter_chars:
@@ -409,6 +409,7 @@ def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
     for line in message_lines:
         if not line:
             continue
+        line = line.strip(r'`\\')
         if line.startswith('+'):
             slot_str = line[1:]
             fake_slot = get_str_filters(slot_str)
