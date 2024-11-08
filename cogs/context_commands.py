@@ -74,6 +74,10 @@ class ContextMenuCog(commands.Cog):
                 cleaned_content = cleaned_content.replace(match_str, f'%{role[0].name}')
 
         rolelist_info = utils.get_rolelist(cleaned_content, all_roles=guild_info.roles)
+
+        if len(rolelist_info.slots) > 30:
+            raise SDGException('Too many slots! Max number of slots is 30')
+
         roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
 
         roles_str = '\n'.join(f'{r.name} (<#{r.id}>)' for r in roles)
