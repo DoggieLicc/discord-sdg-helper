@@ -76,7 +76,7 @@ class EventsCog(commands.Cog):
 
         if thread not in guild._threads.values():
             print(f'Adding {thread.name} ({thread.id}) to cache')
-            guild._threads[thread.id] = thread
+            guild._add_thread(thread)
 
         faction = [f for f in guild_info.factions if f.id == payload.parent_id]
 

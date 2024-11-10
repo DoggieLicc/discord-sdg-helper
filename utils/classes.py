@@ -15,6 +15,7 @@ from typing import Any
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
 from discord.ext.commands import Bot
+from discord.state import ConnectionState
 
 from utils.funcs import get_guild_info, create_embed
 from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
@@ -87,6 +88,30 @@ TrustedIds = BaseTable(
 )
 
 
+class CustomConnectionState(ConnectionState):
+    """Custon ConectionState that doesn't remove archived threads from internal cache"""
+
+    def parse_thread_update(self, data) -> None:
+        guild_id = int(data['guild_id'])
+        guild = self._get_guild(guild_id)
+        if guild is None:
+            return
+
+        raw = discord.RawThreadUpdateEvent(data)
+        raw.thread = thread = guild.get_thread(raw.thread_id)
+        self.dispatch('raw_thread_update', raw)
+        if thread is not None:
+            old = copy.copy(thread)
+            thread._update(data)
+            # "if thread.archived: ...remove_thread"  removed here
+            self.dispatch('thread_update', old, thread)
+        else:
+            thread = discord.Thread(guild=guild, state=guild._state, data=data)
+            if not thread.archived:
+                guild._add_thread(thread)
+            self.dispatch('thread_join', thread)
+
+
 class DiscordClient(Bot):
     def __init__(self, test_guild, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -102,6 +127,9 @@ class DiscordClient(Bot):
         self.populated_forum_ids: list[int] = list()
         self.owner = None
         self.cogs_list: list[str] = list()
+
+    def _get_state(self, **options: Any):
+        return CustomConnectionState(dispatch=self.dispatch, handlers=self._handlers, hooks=self._hooks, http=self.http, **options)
 
     async def get_owner(self) -> discord.User:
         if not self.owner:
@@ -255,7 +283,7 @@ class DiscordClient(Bot):
 
         async for thread in forum_channel.archived_threads(limit=None):
             # Add to dpy's internal cache lol
-            thread.guild._threads[thread.id] = thread
+            thread.guild._add_thread(thread)
 
         if not force:
             self.populated_forum_ids.append(forum_channel.id)
