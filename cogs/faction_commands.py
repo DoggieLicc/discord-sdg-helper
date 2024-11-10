@@ -97,6 +97,34 @@ class FactionCog(commands.GroupCog, group_name='faction'):
 
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name='list')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to True')
+    async def faction_list(self, interaction: discord.Interaction, ephemeral: bool = True):
+        """Lists all factions"""
+        guild_info = utils.get_guild_info(interaction)
+
+        if not guild_info.factions:
+            raise utils.SDGException('No factions defined yet! Use /faction add...')
+
+        embed = utils.create_embed(
+            user=interaction.user,
+            title=f'Listing {len(guild_info.factions)} factions'
+        )
+
+        for faction in guild_info.factions:
+            subalignments = self.client.get_faction_subalignments(faction)
+            roles = self.client.get_faction_roles(faction)
+
+            embed.add_field(
+                inline=False,
+                name=faction.name,
+                value=f'**Forum channel**: <#{faction.id}>\n'
+                      f'**Number of subalignments:** {len(subalignments)}\n'
+                      f'**Number of roles:** {len(roles)}'
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
+
     @app_commands.command(name='sync')
     @app_commands.describe(faction='The faction to sync')
     @app_commands.check(mod_check)
