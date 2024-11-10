@@ -63,7 +63,7 @@ class ErrorCog(commands.Cog):
                     color=discord.Color.red()
                 )
 
-                owner_embed.add_field(name='Unhandled Error!:', value=f"Error {error[:1000]}", inline=False)
+                owner_embed.add_field(name='Unhandled Error!:', value=f"Error {str(error)[:1000]}", inline=False)
                 owner_embed.add_field(name='Command:', value=str(interaction.data)[:1000], inline=False)
 
                 owner_embed.add_field(
