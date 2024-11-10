@@ -16,6 +16,7 @@ class PaginatedMenu(View):
 
         self.paginator = self.get_paginator(items)
 
+        self.items = items
         self.current_page = 1
         self.max_page = len(self.paginator.pages)
         self.owner = owner

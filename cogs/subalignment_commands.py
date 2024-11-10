@@ -117,7 +117,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
         embed = utils.create_embed(
             user=interaction.user,
-            title=f'Listing {len(subalignments)} subalignments'
+            title=f'Listing {len(subalignments)} subalignments in {faction.name}'
         )
 
         for subalignment in subalignments:

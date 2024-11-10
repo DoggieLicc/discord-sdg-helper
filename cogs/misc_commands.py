@@ -23,7 +23,7 @@ class RoleFactionMenu(PaginatedMenu):
         page = self.paginator.pages[self.current_page-1]
         embed = utils.create_embed(
             self.owner,
-            title=f'Listing roles ({self.current_page}/{self.max_page})',
+            title=f'Listing {len(self.items)} roles ({self.current_page}/{self.max_page})',
             description=page
         )
         return {'embed': embed}
