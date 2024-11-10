@@ -100,6 +100,41 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name='list')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to True')
+    async def subalignment_list(
+            self,
+            interaction: discord.Interaction,
+            faction: app_commands.Transform[Faction, utils.FactionTransformer],
+            ephemeral: bool = True
+    ):
+        """Lists all of a faction's subalignments"""
+        subalignments = self.client.get_faction_subalignments(faction)
+        faction_channel = self.client.get_channel(faction.id)
+
+        if not subalignments:
+            raise utils.SDGException('No subalignments defined yet! Use /subalignment add...')
+
+        embed = utils.create_embed(
+            user=interaction.user,
+            title=f'Listing {len(subalignments)} subalignments'
+        )
+
+        for subalignment in subalignments:
+            roles = self.client.get_subalignment_roles(subalignment)
+
+            for tag in faction_channel.available_tags:
+                if tag.id == subalignment.id:
+                    forum_tag = tag
+
+            embed.add_field(
+                inline=False,
+                name=str(forum_tag.emoji) + ' ' + subalignment.name,
+                value=f'**Number of roles:** {len(roles)}'
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
+
 
 async def setup(bot):
     await bot.add_cog(SubalaignmentCog(bot))
