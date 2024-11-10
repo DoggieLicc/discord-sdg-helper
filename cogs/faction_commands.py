@@ -78,12 +78,17 @@ class FactionCog(commands.GroupCog, group_name='faction'):
         """Removes a faction"""
         guild_info: GuildInfo = utils.get_guild_info(interaction)
         faction_roles = self.client.get_faction_roles(faction)
+        subalignments = self.client.get_faction_subalignments(faction)
+
         client = interaction.client
 
         guild_info.factions.remove(faction)
 
         for role in faction_roles:
             guild_info.roles.remove(role)
+
+        for subalignment in subalignments:
+            guild_info.subalignments.remove(subalignment)
 
         self.client.replace_guild_info(guild_info)
 
