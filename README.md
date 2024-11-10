@@ -108,3 +108,27 @@ Examples:
 `?exclusive:%Warlock|%Soul Collector` - Makes Warlock and Soul Collector mutually exclusive 
 
 `?exclusive:Town Power|Town Killing` - Makes all roles with either Town Power tag or Town Killing tag mutually exclusive to eachother
+
+### Weights
+
+You can change the weight of roles to make them more or less likely to spawn
+
+For example, multiplying the weight of Sheriff by 10 will give it 10 times the chance to spawn in all slots it can generate in
+
+The default weight for all roles is `10`
+
+Format: `=filter:weight`
+
+Examples:
+
+`=%Sheriff:x10` - Multiply weight of sheriff by 10 (100)
+
+`=$Town:/2` - Divide weight of all town roles by 2 (5)
+
+`=Cursed:-9` - Subtracts the weight of all roles with Cursed tag by 9 (1)
+
+`=Town Power:+40` - Adds the weight of all roles with Town Power tag by 40 (50)
+
+`=%Cleric:1000` - Sets weight of cleric spawning to 1000
+
+If the filter matches no roles, or if the weight of a role <= 0, generation will fail.
