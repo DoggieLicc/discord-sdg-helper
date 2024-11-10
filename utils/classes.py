@@ -21,7 +21,7 @@ from utils.funcs import get_guild_info, create_embed
 from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
 
 
-@dataclass
+@dataclass(slots=True)
 class SDGObject:
     name: str
     id: int
@@ -451,34 +451,34 @@ class DiscordClient(Bot):
             await conn.commit()
 
 
-@dataclass
+@dataclass(slots=True)
 class Faction(SDGObject):
     ...
 
 
-@dataclass
+@dataclass(slots=True)
 class Subalignment(SDGObject):
     ...
 
 
-@dataclass
+@dataclass(slots=True)
 class InfoCategory(SDGObject):
     ...
 
 
-@dataclass
+@dataclass(slots=True)
 class InfoTag(SDGObject):
     info_category: InfoCategory
 
 
-@dataclass
+@dataclass(slots=True)
 class Role(SDGObject):
     faction: Faction
     subalignment: Subalignment
     forum_tags: set[str] | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class GuildInfo:
     guild_id: int
     factions: list[Faction]

@@ -3,14 +3,14 @@ import asqlite
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(slots=True)
 class BaseColumn:
     name: str
     datatype: str
     addit_schema: str | None = None
 
 
-@dataclass
+@dataclass(slots=True)
 class BaseTable:
     name: str
     columns: list[BaseColumn]

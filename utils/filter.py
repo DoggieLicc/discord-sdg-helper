@@ -9,7 +9,7 @@ import utils
 from utils import Role
 
 
-@dataclass
+@dataclass(slots=True)
 class Filter:
     negated: bool
     filter_str: str
@@ -18,7 +18,7 @@ class Filter:
         ...
 
 
-@dataclass
+@dataclass(slots=True)
 class RoleFilter(Filter):
     def filter_roles(self, in_roles: list[Role]) -> list[Role]:
         valid_roles = []
@@ -33,7 +33,7 @@ class RoleFilter(Filter):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class FactionFilter(Filter):
     def filter_roles(self, in_roles: list[Role]) -> list[Role]:
         valid_roles = []
@@ -48,7 +48,7 @@ class FactionFilter(Filter):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class TagFilter(Filter):
     def filter_roles(self, in_roles) -> list[Role]:
         if self.filter_str == 'ANY':
@@ -72,7 +72,7 @@ class TagFilter(Filter):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class UnionFilter(Filter):
     unioned_filters: list[Filter]
 
@@ -87,13 +87,13 @@ class UnionFilter(Filter):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class Modifier:
     def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
         ...
 
 
-@dataclass
+@dataclass(slots=True)
 class MutualExclusiveModifier(Modifier):
     mutual_exclusive_roles: list[Role]
 
@@ -117,7 +117,7 @@ class MutualExclusiveModifier(Modifier):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class LimitModifier(Modifier):
     limited_roles: list[Role]
     limit: int
@@ -137,7 +137,7 @@ class LimitModifier(Modifier):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class IndividualityModifier(Modifier):
     indv_roles: list[Role]
 
@@ -150,7 +150,7 @@ class IndividualityModifier(Modifier):
         return valid_roles
 
 
-@dataclass
+@dataclass(slots=True)
 class WeightChanger:
     roles: list[Role]
     argument: int
@@ -162,44 +162,43 @@ class WeightChanger:
         return role in self.roles
 
 
-
-@dataclass
+@dataclass(slots=True)
 class WeightSet(WeightChanger):
     def get_weight(self, prev_weight: int) -> int:
         return self.argument
 
 
-@dataclass
+@dataclass(slots=True)
 class WeightAdder(WeightChanger):
     def get_weight(self, prev_weight: int) -> int:
         return prev_weight + self.argument
 
 
-@dataclass
+@dataclass(slots=True)
 class WeightSubtractor(WeightChanger):
     def get_weight(self, prev_weight: int) -> int:
         return prev_weight - self.argument
 
 
-@dataclass
+@dataclass(slots=True)
 class WeightDivider(WeightChanger):
     def get_weight(self, prev_weight: int) -> int | float:
         return prev_weight / self.argument
 
 
-@dataclass
+@dataclass(slots=True)
 class WeightMultiplier(WeightChanger):
     def get_weight(self, prev_weight: int):
         return prev_weight * self.argument
 
 
-@dataclass
+@dataclass(slots=True)
 class Slot:
     filters: list[Filter]
     ignore_global: bool
 
 
-@dataclass
+@dataclass(slots=True)
 class Rolelist:
     slots: list[Slot]
     global_filters: list[Filter]
