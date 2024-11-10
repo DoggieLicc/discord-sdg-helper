@@ -101,6 +101,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name='list')
+    @app_commands.describe(faction='The faction to view subalignments of')
     @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to True')
     async def subalignment_list(
             self,
@@ -117,7 +118,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
         embed = utils.create_embed(
             user=interaction.user,
-            title=f'Listing {len(subalignments)} subalignments'
+            title=f'Listing {len(subalignments)} subalignments in {faction.name}'
         )
 
         for subalignment in subalignments:
