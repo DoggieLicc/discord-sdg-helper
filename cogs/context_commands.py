@@ -34,6 +34,12 @@ class ContextMenuCog(commands.Cog):
     ):
         """Generate rolelist roles"""
 
+        while True:
+            if message.author == self.client.user and message.reference:
+                message = message.reference.cached_message or message.reference.resolved or await interaction.channel.fetch_message(message.reference.message_id)
+            else:
+                break
+
         channel_mentions = message.channel_mentions
         cleaned_content = message.content
         guild_info = utils.get_guild_info(interaction)
