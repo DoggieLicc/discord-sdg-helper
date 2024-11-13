@@ -3,13 +3,25 @@ import asyncio
 import discord
 
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from utils import GuildInfo
 
 
 class EventsCog(commands.Cog):
     def __init__(self, client):
         self.client = client
+        self.last_activity = None
+        self.update_custom_activity.start()
+
+    @tasks.loop(hours=1)
+    async def update_custom_activity(self):
+        len_roles = sum(len(gi.roles) for gi in self.client.guild_info)
+        len_guilds = len(self.client.guilds)
+        activity = discord.CustomActivity(f'Handling {len_roles} roles in {len_guilds} servers')
+
+        if activity != self.last_activity:
+            await self.client.change_presence(activity=activity)
+            self.last_activity = activity
 
     async def sync_all(self):
         for guild in self.client.guilds:
@@ -28,6 +40,8 @@ class EventsCog(commands.Cog):
 
             await self.sync_all()
             self.client.first_sync = True
+
+            await self.update_custom_activity()
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
