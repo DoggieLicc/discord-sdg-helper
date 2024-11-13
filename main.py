@@ -34,7 +34,13 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-client = DiscordClient(intents=intents, test_guild=MY_GUILD, command_prefix=when_mentioned_or('sdg.'), help_command=None)
+
+client = DiscordClient(
+    intents=intents,
+    test_guild=MY_GUILD,
+    command_prefix=when_mentioned_or('sdg.'),
+    help_command=None
+)
 
 client.allowed_mentions = discord.AllowedMentions(users=True, replied_user=True, everyone=False, roles=False)
 
