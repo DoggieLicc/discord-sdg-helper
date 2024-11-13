@@ -54,9 +54,11 @@ class MiscCog(commands.Cog):
 
         if forum_channel.default_reaction_emoji:
             emoji = forum_channel.default_reaction_emoji
-            num_reactions = sum(r.normal_count for r in starter_message.reactions if str(r.emoji) == str(emoji))
+            reaction = [r for r in starter_message.reactions if str(r.emoji) == str(emoji) or r.emoji.id == emoji.id]
+            if reaction:
+                num_reactions = reaction[0].normal_count
 
-            reaction_str = f' | {num_reactions} {emoji}'
+                reaction_str = f' | {num_reactions} {emoji}'
 
 
         embed = utils.create_embed(
