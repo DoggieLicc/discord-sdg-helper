@@ -48,12 +48,22 @@ class MiscCog(commands.Cog):
         starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
         role_str = starter_message.content
         message_image = starter_message.attachments[0] if starter_message.attachments else None
+        forum_channel = thread_channel.parent or await interaction.guild.fetch_channel(thread_channel.parent_id)
+
+        reaction_str = ''
+
+        if forum_channel.default_reaction_emoji:
+            emoji = forum_channel.default_reaction_emoji
+            num_reactions = sum(r.normal_count for r in starter_message.reactions if str(r.emoji) == str(emoji))
+
+            reaction_str = f' | {num_reactions} {emoji}'
+
 
         embed = utils.create_embed(
             interaction.user,
             title=f'{role.name}',
             thumbnail=message_image,
-            description=f'Post: {thread_channel.mention}\n\n'
+            description=f'Post: {thread_channel.mention}{reaction_str}\n\n'
                         f'{role_str[:4000]}'
         )
 
