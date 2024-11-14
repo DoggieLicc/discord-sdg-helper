@@ -129,6 +129,44 @@ class EventsCog(commands.Cog):
         if infotag or faction:
             self.client.replace_guild_info(guild_info)
 
+    @commands.Cog.listener()
+    async def on_guild_channel_update(self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel):
+        if not isinstance(before, discord.ForumChannel):
+            return
+
+        guild_info = self.client.get_guild_info(before.guild.id)
+
+        faction = [f for f in guild_info.factions if f.id == before.id]
+
+        if not faction:
+            return
+
+        faction = faction[0]
+
+        before_tags = before.available_tags
+        after_tags = after.available_tags
+
+        missing_tags = []
+        for tag in before_tags:
+            if tag not in after_tags:
+                missing_tags.append(tag)
+
+        for missing_tag in missing_tags:
+            subalignment = [s for s in guild_info.subalignments if s.id == missing_tag.id]
+            if subalignment:
+                subalignment = subalignment[0]
+                for role in self.client.get_subalignment_roles(subalignment):
+                    guild_info.roles.remove(role)
+
+                guild_info.subalignments.remove(subalignment)
+                self.client.replace_guild_info(guild_info)
+
+                await self.client.sync_faction(faction)
+                await self.client.delete_item_from_db(subalignment, 'subalignments')
+
+                print(f'Deleted {subalignment.name} automatically')
+
+
 
 async def setup(bot):
     await bot.add_cog(EventsCog(bot))
