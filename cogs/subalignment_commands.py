@@ -89,13 +89,17 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
         self.client.replace_guild_info(guild_info)
 
+        faction_str = f' from <#{faction.id}>' if faction else ''
+
         embed = utils.create_embed(
             interaction.user,
             title='Removed subalignment',
-            description=f'Removed {subalignment.name} from <#{faction.id}>'
+            description=f'Removed {subalignment.name}' + faction_str
         )
 
-        await self.client.sync_faction(faction)
+        if faction:
+            await self.client.sync_faction(faction)
+
         await self.client.delete_item_from_db(subalignment, 'subalignments')
 
         await interaction.response.send_message(embed=embed)
