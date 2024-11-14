@@ -251,13 +251,7 @@ class DiscordClient(Bot):
         return subalignments
 
     def get_subalignment_roles(self, subalignment: Subalignment) -> list[Role]:
-        for channel in self.get_all_channels():
-            if isinstance(channel, discord.ForumChannel):
-                for tag in channel.available_tags:
-                    if tag.id == subalignment.id:
-                        guild = channel.guild
-
-        guild_info = self.get_guild_info(guild.id)
+        guild_info = [gi for gi in self.guild_info if subalignment in gi.subalignments][0]
         roles = []
 
         for role in guild_info.roles:
