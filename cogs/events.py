@@ -4,6 +4,8 @@ import discord
 
 from discord import app_commands
 from discord.ext import commands, tasks
+
+import utils
 from utils import GuildInfo
 
 
@@ -161,11 +163,38 @@ class EventsCog(commands.Cog):
                 guild_info.subalignments.remove(subalignment)
                 self.client.replace_guild_info(guild_info)
 
-                await self.client.sync_faction(faction)
                 await self.client.delete_item_from_db(subalignment, 'subalignments')
 
                 print(f'Deleted {subalignment.name} automatically')
 
+        await self.client.sync_faction(faction)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
+        guild_info: utils.GuildInfo = self.client.get_guild_info(channel.guild.id)
+
+        faction = [f for f in guild_info.factions if f.id == channel.id]
+
+        if faction:
+            faction = faction[0]
+            guild_info.factions.remove(faction)
+            for role in self.client.get_faction_roles(faction):
+                guild_info.roles.remove(role)
+            await self.client.delete_item_from_db(faction)
+
+        info_category = [t for t in guild_info.info_categories if t.id == channel.id]
+
+        if info_category:
+            info_category = info_category[0]
+            guild_info.info_categories.remove(info_category)
+            info_tags = [it for it in guild_info.info_tags if it.info_category == info_category]
+            for info_tag in info_tags:
+                guild_info.info_tags.remove(info_tag)
+            await self.client.delete_item_from_db(info_category)
+
+        if faction or info_category:
+            self.client.replace_guild_info(guild_info)
+            await self.client.sync_guild(channel.guild)
 
 
 async def setup(bot):
