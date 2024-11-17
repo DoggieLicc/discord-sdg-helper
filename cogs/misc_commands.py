@@ -260,13 +260,16 @@ class MiscCog(commands.Cog):
     @app_commands.describe(mentions_message_id='The ID of the message to get mentions from. (Use google to search how)')
     @app_commands.describe(additional_message='Additonal message to send to each thread. Useful for mentioning a role etc.')
     @app_commands.describe(thread_name='The name to give the threads, by default it will be "Mod Thread"')
+    @app_commands.describe(invitable='Whether to allow non-moderators to add others to their thread. Defaults to False')
+    @app_commands.describe(roles_link='Link to message containing the output of "Generate Rolelist Roles"')
     async def generate_mod_threads(
             self,
             interaction: discord.Interaction,
             mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer],
             additional_message: str = '',
             thread_name: str = 'Mod Thread',
-            role_link: str = None
+            invitable: bool = False,
+            roles_link: str = None
     ):
         """Generate mod threads using mentions from the provided message"""
 
@@ -282,8 +285,10 @@ class MiscCog(commands.Cog):
             r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
         )
 
+        channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
+
         generated_roles = []
-        match = re.search(link_regex, role_link)
+        match = re.search(link_regex, roles_link)
         if match:
             channel_id = match.group('channel_id')
             message_id = match.group('message_id')
@@ -291,8 +296,9 @@ class MiscCog(commands.Cog):
             channel = interaction.guild.get_channel_or_thread(channel_id) or await interaction.guild.fetch_channel(channel_id)
             message = await channel.fetch_message(message_id)
 
-            for role_ment in message.channel_mentions:
-                role = [r for r in guild_info.roles if role_ment.id == r.id]
+            for match in re.finditer(channel_mention_regex, message.content):
+                channel_id = match.group(1)
+                role = [r for r in guild_info.roles if int(channel_id) == r.id]
                 if role:
                     generated_roles.append(role[0])
 
@@ -303,7 +309,10 @@ class MiscCog(commands.Cog):
                 if member not in message_mentions:
                     message_mentions.append(member)
 
-        if role_link and not generated_roles:
+        if roles_link and not match:
+            raise SDGException(f'Invalid roles link! It must be a Discord link to a message')
+
+        if roles_link and not generated_roles:
             raise SDGException(f'No roles found in provided message!')
 
         if generated_roles:
@@ -323,7 +332,7 @@ class MiscCog(commands.Cog):
             thread = await message.channel.create_thread(
                 name=f'{member} {thread_name}',
                 auto_archive_duration=10080,
-                invitable=False
+                invitable=invitable
             )
 
             message_to_send = member.mention + ' ' + interaction.user.mention + '\n\n' + additional_message
