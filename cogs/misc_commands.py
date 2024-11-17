@@ -1,4 +1,6 @@
 import asyncio
+import random
+import re
 
 import discord
 
@@ -250,6 +252,96 @@ class MiscCog(commands.Cog):
             view = discord.utils.MISSING
 
         await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
+
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
+    @app_commands.checks.bot_has_permissions(manage_threads=True, create_private_threads=True)
+    @app_commands.command(name='generatethreads')
+    @app_commands.describe(mentions_message_id='The ID of the message to get mentions from. (Use google to search how)')
+    @app_commands.describe(additional_message='Additonal message to send to each thread. Useful for mentioning a role etc.')
+    @app_commands.describe(thread_name='The name to give the threads, by default it will be "Mod Thread"')
+    async def generate_mod_threads(
+            self,
+            interaction: discord.Interaction,
+            mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer],
+            additional_message: str = '',
+            thread_name: str = 'Mod Thread',
+            role_link: str = None
+    ):
+        """Generate mod threads using mentions from the provided message"""
+
+        message = mentions_message_id
+        guild_info = get_guild_info(interaction)
+
+        message_mentions = message.mentions
+        role_mentions = message.role_mentions
+
+        link_regex = re.compile(
+            r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
+            r"/channels/[0-9]{15,19}/(?P<channel_id>"
+            r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
+        )
+
+        generated_roles = []
+        match = re.search(link_regex, role_link)
+        if match:
+            channel_id = match.group('channel_id')
+            message_id = match.group('message_id')
+
+            channel = interaction.guild.get_channel_or_thread(channel_id) or await interaction.guild.fetch_channel(channel_id)
+            message = await channel.fetch_message(message_id)
+
+            for role_ment in message.channel_mentions:
+                role = [r for r in guild_info.roles if role_ment.id == r.id]
+                if role:
+                    generated_roles.append(role[0])
+
+        random.shuffle(generated_roles)
+
+        for role in role_mentions:
+            for member in role.members:
+                if member not in message_mentions:
+                    message_mentions.append(member)
+
+        if role_link and not generated_roles:
+            raise SDGException(f'No roles found in provided message!')
+
+        if generated_roles:
+            if len(generated_roles) != len(message_mentions):
+                raise SDGException(f'Mismatch between amount of provided roles '
+                                   f'({len(generated_roles)}) and amount of mentioned players ({len(message_mentions)})')
+
+        if not message_mentions:
+            raise SDGException('No users or roles are mentioned in that message!')
+
+        if not interaction.channel.type == discord.ChannelType.text:
+            raise SDGException('Can\'t use in non-text channels!')
+
+        await interaction.response.defer(ephemeral=True)
+
+        for member in message_mentions:
+            thread = await message.channel.create_thread(
+                name=f'{member} {thread_name}',
+                auto_archive_duration=10080,
+                invitable=False
+            )
+
+            message_to_send = member.mention + ' ' + interaction.user.mention + '\n\n' + additional_message
+
+            if generated_roles:
+                random_role = generated_roles.pop(0)
+                message_to_send = message_to_send.strip() + f'\n\n**You are the <#{random_role.id}>**'
+
+            await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
+            await thread.leave()
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Threads created!',
+            description=f'Generated {len(message_mentions)} private threads'
+        )
+
+        await interaction.followup.send(embed=embed)
 
 
 async def setup(bot):

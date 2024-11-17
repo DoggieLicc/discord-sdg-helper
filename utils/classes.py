@@ -12,7 +12,7 @@ from contextlib import redirect_stdout
 from thefuzz import process
 from typing import Any
 
-from discord import app_commands, Interaction
+from discord import app_commands, Interaction, AppCommandOptionType
 from discord.app_commands import Choice
 from discord.ext.commands import Bot
 from discord.state import ConnectionState
@@ -486,6 +486,15 @@ class GuildInfo:
 class SDGException(Exception):
     def __init__(self, *args):
         super().__init__(*args)
+
+
+class MessageTransformer(app_commands.Transformer):
+    async def transform(self, interaction: Interaction, value: str, /) -> Any:
+        try:
+            message = await interaction.channel.fetch_message(int(value))
+            return message
+        except discord.DiscordException:
+            raise SDGException('Invalid message ID! Message must be in the same channel as this one')
 
 
 class ChoiceTransformer(app_commands.Transformer):
