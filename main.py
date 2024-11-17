@@ -30,6 +30,9 @@ DISCORD_TOKEN = os.getenv('BOT_TOKEN')
 DEV_GUILD_ID = os.getenv('DEVELOPMENT_GUILD')
 MY_GUILD = discord.Object(id=int(DEV_GUILD_ID)) if DEV_GUILD_ID else None
 
+DO_FIRST_SYNC = os.getenv('DO_FIRST_SYNC')
+DO_FIRST_SYNC = True if DO_FIRST_SYNC.lower().strip() == 'true' else False
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -38,6 +41,7 @@ intents.members = True
 client = DiscordClient(
     intents=intents,
     test_guild=MY_GUILD,
+    do_first_sync=DO_FIRST_SYNC,
     command_prefix=when_mentioned_or('sdg.'),
     help_command=None
 )

@@ -113,7 +113,7 @@ class CustomConnectionState(ConnectionState):
 
 
 class DiscordClient(Bot):
-    def __init__(self, test_guild, *args, **kwargs):
+    def __init__(self, test_guild, do_first_sync: bool, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.TEST_GUILD = test_guild
         self.guild_info: list[GuildInfo] = list()
@@ -127,6 +127,7 @@ class DiscordClient(Bot):
         self.populated_forum_ids: list[int] = list()
         self.owner = None
         self.cogs_list: list[str] = list()
+        self.do_first_sync = do_first_sync
 
     def _get_state(self, **options: Any):
         return CustomConnectionState(dispatch=self.dispatch, handlers=self._handlers, hooks=self._hooks, http=self.http, **options)
@@ -311,11 +312,15 @@ class DiscordClient(Bot):
     async def setup_hook(self):
         self.guild_task = self.loop.create_task(self.load_guild_info())
 
-        if self.TEST_GUILD:
-            #  self.tree.copy_global_to(guild=self.TEST_GUILD)
-            await self.tree.sync(guild=self.TEST_GUILD)
+        if self.do_first_sync:
+            if self.TEST_GUILD:
+                self.tree.copy_global_to(guild=self.TEST_GUILD)
+                await self.tree.sync(guild=self.TEST_GUILD)
 
-        await self.tree.sync()
+            await self.tree.sync()
+            print('Synced commands automatically (DO_FIRST_SYNC)')
+        else:
+            print('Not syncing commands on start (DO_FIRST_SYNC)')
 
     async def load_guild_info(self):
         await self.start_database()
