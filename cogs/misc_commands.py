@@ -269,7 +269,7 @@ class MiscCog(commands.Cog):
             additional_message: str = '',
             thread_name: str = 'Mod Thread',
             invitable: bool = False,
-            roles_link: str = None
+            roles_link: str = ''
     ):
         """Generate mod threads using mentions from the provided message"""
 
