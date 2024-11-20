@@ -30,7 +30,7 @@ DISCORD_TOKEN = os.getenv('BOT_TOKEN')
 DEV_GUILD_ID = os.getenv('DEVELOPMENT_GUILD')
 MY_GUILD = discord.Object(id=int(DEV_GUILD_ID)) if DEV_GUILD_ID else None
 
-DO_FIRST_SYNC = os.getenv('DO_FIRST_SYNC')
+DO_FIRST_SYNC = os.getenv('DO_FIRST_SYNC') or 'false'
 DO_FIRST_SYNC = True if DO_FIRST_SYNC.lower().strip() == 'true' else False
 
 intents = discord.Intents.default()
