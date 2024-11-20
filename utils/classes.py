@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import copy
-import io
-import textwrap
 import discord
 import asqlite
 
 from dataclasses import dataclass
 from collections import Counter
-from contextlib import redirect_stdout
 from thefuzz import process
-from typing import Any
+from typing import Any, TypeVar
 
-from discord import app_commands, Interaction, AppCommandOptionType
+from discord import app_commands, Interaction
 from discord.app_commands import Choice
 from discord.ext.commands import Bot
 from discord.state import ConnectionState
@@ -25,6 +22,9 @@ from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
 class SDGObject:
     name: str
     id: int
+
+
+S = TypeVar('S', bound=SDGObject)
 
 
 FactionTable = BaseTable(
@@ -303,7 +303,7 @@ class DiscordClient(Bot):
         trusted_ids = []
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
-                for row in await cursor.execute(f'SELECT * FROM trusted_ids WHERE guild_id = (?)', (guild_id,)):
+                for row in await cursor.execute('SELECT * FROM trusted_ids WHERE guild_id = (?)', (guild_id,)):
                     trusted_id: int = row['id']
                     trusted_ids.append(trusted_id)
 
@@ -329,7 +329,7 @@ class DiscordClient(Bot):
         subalignment_data = await self.load_db_item('subalignments')
         infotag_data = await self.load_db_item('infotags')
 
-        all_data: list[tuple[dict[int, str], type[SDGObject]]] = [
+        all_data: list[tuple[dict[int, str], type[S]]] = [
             (faction_data, Faction),
             (infotag_data, InfoCategory)
         ]
@@ -395,7 +395,7 @@ class DiscordClient(Bot):
 
         return None
 
-    async def add_item_to_db(self, item: type[SDGObject], table_name: str):
+    async def add_item_to_db(self, item: S, table_name: str):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
@@ -408,7 +408,7 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def delete_item_from_db(self, item: type[SDGObject], table_name: str):
+    async def delete_item_from_db(self, item: S, table_name: str):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
@@ -420,7 +420,7 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def modify_item_in_db(self, item: type[SDGObject], table_name: str):
+    async def modify_item_in_db(self, item: type[S], table_name: str):
         await self.delete_item_from_db(item, table_name)
         await self.add_item_to_db(item, table_name)
 
@@ -477,6 +477,8 @@ class Role(SDGObject):
     forum_tags: set[str] | None = None
 
 
+
+
 @dataclass(slots=True)
 class GuildInfo:
     guild_id: int
@@ -486,6 +488,27 @@ class GuildInfo:
     info_categories: list[InfoCategory]
     info_tags: list[InfoTag]
     trusted_ids: list[int]
+
+    def _get_item_by_id(self, attribute: str, id_:  int) -> type[S] | None:
+        items = getattr(self, attribute)
+        item = [i for i in items if i.id == id_]
+        if item:
+            return item[0]
+
+    def get_role(self, id_:  int) -> Role | None:
+        return self._get_item_by_id('roles', id_)
+
+    def get_faction(self, id_:  int) -> Faction | None:
+        return self._get_item_by_id('factions', id_)
+
+    def get_subalignment(self, id_:  int) -> Subalignment | None:
+        return self._get_item_by_id('subalignments', id_)
+
+    def get_info_category(self, id_:  int) -> InfoCategory | None:
+        return self._get_item_by_id('info_categories', id_)
+
+    def get_info_tag(self, id_:  int) -> InfoTag | None:
+        return self._get_item_by_id('info_tags', id_)
 
 
 class SDGException(Exception):
@@ -537,7 +560,7 @@ class FactionTransformer(ChoiceTransformer):
 
     def get_value(self, interaction: Interaction, value: Any) -> Faction:
         guild_info: GuildInfo = get_guild_info(interaction)
-        faction = [f for f in guild_info.factions if f.id == int(value)][0]
+        faction = guild_info.get_faction(int(value))
         return faction
 
 
@@ -552,7 +575,7 @@ class SubalignmentTransformer(ChoiceTransformer):
 
     def get_value(self, interaction: Interaction, value: Any) -> Subalignment:
         guild_info: GuildInfo = get_guild_info(interaction)
-        subalignment = [f for f in guild_info.subalignments if f.id == int(value)][0]
+        subalignment = guild_info.get_subalignment(int(value))
         return subalignment
 
 
@@ -567,7 +590,7 @@ class InfoCategoryTransformer(ChoiceTransformer):
 
     def get_value(self, interaction: Interaction, value: Any) -> InfoCategory:
         guild_info: GuildInfo = get_guild_info(interaction)
-        info_category = [f for f in guild_info.info_categories if f.id == int(value)][0]
+        info_category = guild_info.get_info_category(int(value))
         return info_category
 
 
@@ -591,7 +614,7 @@ class InfoTagTransformer(ChoiceTransformer):
 
     def get_value(self, interaction: Interaction, value: Any) -> InfoTag:
         guild_info: GuildInfo = get_guild_info(interaction)
-        info_tag = [i for i in guild_info.info_tags if int(value) == i.id][0]
+        info_tag = guild_info.get_info_tag(int(value))
 
         return info_tag
 
@@ -607,7 +630,7 @@ class RoleTransformer(ChoiceTransformer):
 
     def get_value(self, interaction: Interaction, value: Any) -> Role:
         guild_info: GuildInfo = get_guild_info(interaction)
-        role = [f for f in guild_info.roles if f.id == int(value)][0]
+        role = guild_info.get_role(int(value))
         return role
 
 

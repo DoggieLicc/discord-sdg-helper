@@ -10,7 +10,7 @@ import utils
 @app_commands.default_permissions()
 class TrustCog(commands.GroupCog, group_name='trust'):
     def __init__(self, client):
-        self.client = client
+        self.client: utils.DiscordClient = client
 
     @app_commands.command(name='add')
     @app_commands.describe(trustee='The member or role you want to give trust to')

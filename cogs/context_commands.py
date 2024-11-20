@@ -37,22 +37,22 @@ class ContextMenuCog(commands.Cog):
 
         channel_mentions = message.channel_mentions
         cleaned_content = message.content
-        guild_info = utils.get_guild_info(interaction)
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
 
         channel_link_regex = (r"https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?P<guild_id>[0-9]{"
                               r"15,19})\/(?P<channel_id>[0-9]{15,19})?")
 
         for channel in channel_mentions:
             if isinstance(channel, discord.ForumChannel):
-                faction = [f for f in guild_info.factions if f.id == channel.id]
+                faction = guild_info.get_faction(channel.id)
                 if not faction:
                     raise SDGException('Channel isn\'t assigned to a faction!')
-                cleaned_content = cleaned_content.replace(channel.mention, f'${faction[0].name}')
+                cleaned_content = cleaned_content.replace(channel.mention, f'${faction.name}')
             else:
-                role = [r for r in guild_info.roles if r.id == channel.id]
+                role = guild_info.get_role(channel.id)
                 if not role:
                     raise SDGException('Thread isn\'t a assigned to a role!')
-                cleaned_content = cleaned_content.replace(channel.mention, f'%{role[0].name}')
+                cleaned_content = cleaned_content.replace(channel.mention, f'%{role.name}')
 
         for match in re.finditer(channel_link_regex, cleaned_content):
             guild_id = int(match.group('guild_id'))
@@ -63,16 +63,16 @@ class ContextMenuCog(commands.Cog):
             if guild_id != interaction.guild_id:
                 continue
 
-            faction = [f for f in guild_info.factions if f.id == channel_id]
+            faction = guild_info.get_faction(channel_id)
 
             if faction:
-                cleaned_content = cleaned_content.replace(match_str, f'${faction[0].name}')
+                cleaned_content = cleaned_content.replace(match_str, f'${faction.name}')
                 continue
 
-            role = [r for r in guild_info.roles if r.id == channel_id]
+            role = guild_info.get_role(channel_id)
 
             if role:
-                cleaned_content = cleaned_content.replace(match_str, f'%{role[0].name}')
+                cleaned_content = cleaned_content.replace(match_str, f'%{role.name}')
 
         rolelist_info = utils.get_rolelist(cleaned_content, all_roles=guild_info.roles)
 

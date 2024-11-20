@@ -13,7 +13,7 @@ import utils
 @app_commands.guild_only()
 class RandomCog(commands.GroupCog, group_name='random'):
     def __init__(self, client):
-        self.client = client
+        self.client: utils.DiscordClient = client
 
     @app_commands.command(name='roles')
     @app_commands.describe(faction='Only get roles from this faction')

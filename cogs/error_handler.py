@@ -10,7 +10,7 @@ import utils
 
 class ErrorCog(commands.Cog):
     def __init__(self, client):
-        self.client = client
+        self.client: utils.DiscordClient = client
 
     def cog_load(self):
         tree = self.client.tree

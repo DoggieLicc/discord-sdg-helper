@@ -13,7 +13,7 @@ import utils
 
 class RoleFactionMenu(PaginatedMenu):
     def __init__(self, client, *args, **kwargs):
-        self.client = client
+        self.client: utils.DiscordClient = client
         super().__init__(*args, **kwargs)
 
     def format_line(self, item: Role) -> str:
@@ -121,7 +121,7 @@ class MiscCog(commands.Cog):
             if not v:
                 continue
 
-            faction = [f for f in guild_info.factions if f.id == k][0]
+            faction = guild_info.get_faction(k)
             failed_str = '\n'.join(r.mention for r in v)
             embed.add_field(
                 name=f'Failed roles in {faction.name}',

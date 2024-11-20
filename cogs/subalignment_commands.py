@@ -10,7 +10,7 @@ import utils
 @app_commands.guild_only()
 class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
     def __init__(self, client):
-        self.client = client
+        self.client: utils.DiscordClient = client
 
     @app_commands.command(name='add')
     @app_commands.describe(faction='The faction to add the subalignment to')
@@ -27,13 +27,14 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
         guild_info = utils.get_guild_info(interaction)
         subalignment = Subalignment(forum_tag.name, forum_tag.id)
         guild_info.subalignments.append(subalignment)
+        emoji_str = ' ' + str(forum_tag.emoji) + ' ' if forum_tag.emoji else ''
 
         self.client.replace_guild_info(guild_info)
 
         embed = utils.create_embed(
             interaction.user,
             title='Subalignment added',
-            description=f'Added {forum_tag.emoji} {forum_tag} to <#{faction.id}>'
+            description=f'Added {emoji_str} {forum_tag} to <#{faction.id}>'
         )
 
         await self.client.sync_faction(faction)
@@ -54,15 +55,16 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
         roles = self.client.get_subalignment_roles(subalignment)
         faction = self.client.get_subalignment_faction(subalignment)
         faction_channel = self.client.get_channel(faction.id)
+        emoji_str = ''
 
         for tag in faction_channel.available_tags:
-            if tag.id == subalignment.id:
-                forum_tag = tag
+            if tag.id == subalignment.id and tag.emoji:
+                emoji_str = ' ' + str(tag.emoji) + ' '
 
         embed = utils.create_embed(
             interaction.user,
             title='Subalignment info',
-            description=f'**Name:** {forum_tag.emoji} {subalignment.name.title()}\n'
+            description=f'**Name:**{emoji_str}{subalignment.name.title()}\n'
                         f'**Main faction:** <#{faction.id}>\n'
                         f'**Amount of roles:** {len(roles)}'
         )
@@ -127,14 +129,15 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
 
         for subalignment in subalignments:
             roles = self.client.get_subalignment_roles(subalignment)
+            emoji_str = ''
 
             for tag in faction_channel.available_tags:
-                if tag.id == subalignment.id:
-                    forum_tag = tag
+                if tag.id == subalignment.id and tag.emoji:
+                    emoji_str = str(tag.emoji)
 
             embed.add_field(
                 inline=False,
-                name=str(forum_tag.emoji) + ' ' + subalignment.name,
+                name=emoji_str + ' ' + subalignment.name,
                 value=f'**Number of roles:** {len(roles)}'
             )
 

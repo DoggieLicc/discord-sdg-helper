@@ -10,7 +10,7 @@ import utils
 @app_commands.guild_only()
 class InfotagCog(commands.GroupCog, group_name='infotag'):
     def __init__(self, client):
-        self.client = client
+        self.client: utils.DiscordClient = client
 
     @app_commands.command(name='add')
     @app_commands.describe(forum_channel='The forum channel to associate with the infotag category')
