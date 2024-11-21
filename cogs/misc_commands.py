@@ -19,7 +19,8 @@ class RoleFactionMenu(PaginatedMenu):
     def format_line(self, item: Role) -> str:
         faction_channel = self.client.get_channel(item.faction.id)
         sub_tag = faction_channel.get_tag(item.subalignment.id)
-        return f'{sub_tag.emoji} {item.name} (<#{item.id}>)'
+        emoji_str = sub_tag.emoji + ' ' if sub_tag.emoji else ''
+        return f'{emoji_str}{item.name} (<#{item.id}>)'
 
     async def get_page_contents(self) -> dict:
         page = self.paginator.pages[self.current_page-1]
