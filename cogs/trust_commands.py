@@ -62,7 +62,7 @@ class TrustCog(commands.GroupCog, group_name='trust'):
 
         self.client.replace_guild_info(guild_info)
 
-        await self.client.delete_trusted_id_in_db(trustee.id)
+        await self.client.delete_trusted_id_in_db(trustee.id, interaction.guild_id)
 
         embed = utils.create_embed(
             interaction.user,

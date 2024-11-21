@@ -437,13 +437,14 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def delete_trusted_id_in_db(self, trusted_id: int):
+    async def delete_trusted_id_in_db(self, trusted_id: int, guild_id: int):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM trusted_ids WHERE id = (?)',
+                    f'DELETE FROM trusted_ids WHERE id = (?) AND guild_id = (?)',
                     (
                         trusted_id,
+                        guild_id
                     )
                 )
 
