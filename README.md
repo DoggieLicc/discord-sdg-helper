@@ -25,7 +25,8 @@ This bot runs on [discord.py](https://github.com/Rapptz/discord.py)
 8. Install requirements: `pip install -r requirements.txt`
 9. Create a file named `.env`
 10. Edit it and add `BOT_TOKEN=<token>` where `<token>` is the bot's token you got from step 1, then save
-11. Run the main script: `python main.py`
+11. Run the main script: `python main.py` or `python3 main.py`
+12. Sync the application commands by the text command `sdg.sync` in a channel the bot has access to
 
 ## How to use this bot:
 This bot uses the slash commands system provided by Discord. Type `/` to see the available commands
@@ -43,7 +44,7 @@ $ - Faction (You can also use #forum)
 
 (no symbol is for forum tags)
 
-ANY - No filter (dont combine with ! ...)
+ANY - No filter, case-sensitive (dont combine with ! ...)
 
 ### Logic: 
 & - Seperator
@@ -77,7 +78,7 @@ Examples:
 
 Modifiers change how all slots generate in unique ways.
 
-Modifiers start with `?` and can have arguments seperated by `:`
+Modifiers start with `?` and can have arguments separated by `:`
 
 * limit:**filters**:*amount*
 
@@ -115,9 +116,11 @@ You can change the weight of roles to make them more or less likely to spawn
 
 For example, multiplying the weight of Sheriff by 10 will give it 10 times the chance to spawn in all slots it can generate in
 
+Specifying a limit will disable the weight after the limit has been reached, by default weights have no limit.
+
 The default weight for all roles is `10`
 
-Format: `=filter:weight`
+Format: `=filter:weight:limit`
 
 Examples:
 
@@ -130,5 +133,7 @@ Examples:
 `=Town Power:+40` - Adds the weight of all roles with Town Power tag by 40 (50)
 
 `=%Cleric:1000` - Sets weight of cleric spawning to 1000
+
+`=%Oracle:20:1` - Multiply weight of Oracle spawning by 20, but when 1 Oracle generates, the weight will be normal again for future slots
 
 If the filter matches no roles, or if the weight of a role <= 0, generation will fail.
