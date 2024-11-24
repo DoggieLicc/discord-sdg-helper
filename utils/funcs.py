@@ -70,6 +70,18 @@ async def mod_check(interaction: discord.Interaction) -> bool:
     return False
 
 
+async def admin_check(interaction: discord.Interaction) -> bool:
+    owner = await interaction.client.get_owner()
+
+    if interaction.user == owner:
+        return True
+
+    if interaction.user.guild_permissions.administrator:
+        return True
+
+    return False
+
+
 def get_interaction_parameter(interaction: discord.Interaction, name: str, default=None):
     value = None
     try:

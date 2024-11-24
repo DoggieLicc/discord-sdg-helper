@@ -87,6 +87,118 @@ TrustedIds = BaseTable(
     ]
 )
 
+AchievementsTable = BaseTable(
+    name='achievements',
+    columns=[
+        BaseColumn(
+            name='id',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='guild_id',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='name',
+            datatype='string'
+        ),
+        BaseColumn(
+            name='description',
+            datatype='string'
+        ),
+        BaseColumn(
+            name='role_id',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='subalignment_id',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='faction_id',
+            datatype='integer'
+        ),
+    ]
+)
+
+AccountsTable = BaseTable(
+    name='accounts',
+    columns=[
+        BaseColumn(
+            name='user_id',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='guild_id',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='num_wins',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='num_loses',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='num_draws',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='blessed_scrolls',
+            datatype='string'
+        ),
+        BaseColumn(
+            name='cursed_scrolls',
+            datatype='string'
+        ),
+        BaseColumn(
+            name='accomplished_achievements',
+            datatype='string'
+        ),
+    ]
+)
+
+GuildSettingsTable = BaseTable(
+    name='guild_settings',
+    columns=[
+        BaseColumn(
+            name='max_scrolls',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='roles_are_scrollable',
+            datatype='boolean'
+        ),
+        BaseColumn(
+            name='factions_are_scrollable',
+            datatype='boolean'
+        ),
+        BaseColumn(
+            name='subalignments_are_scrollable',
+            datatype='boolean'
+        ),
+        BaseColumn(
+            name='role_scroll_multiplier',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='subalignment_scroll_multiplier',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='faction_scroll_multiplier',
+            datatype='integer'
+        ),
+        BaseColumn(
+            name='accounts_creatable',
+            datatype='boolean'
+        )
+    ]
+)
+
+USER_VERSION = 0
+
 
 class CustomConnectionState(ConnectionState):
     """Custon ConectionState that doesn't remove archived threads from internal cache"""
@@ -118,7 +230,16 @@ class DiscordClient(Bot):
         self.TEST_GUILD = test_guild
         self.guild_info: list[GuildInfo] = list()
         self.db_helper = DatabaseHelper(
-            [FactionTable, SubalignmentTable, InfotagTable, TrustedIds],
+            [
+                FactionTable,
+                SubalignmentTable,
+                InfotagTable,
+                TrustedIds,
+                AccountsTable,
+                AchievementsTable,
+                GuildSettingsTable
+            ],
+            USER_VERSION,
             'guild_info.db',
             check_same_thread=False
         )
@@ -286,6 +407,12 @@ class DiscordClient(Bot):
     async def start_database(self):
         await self.db_helper.startup()
 
+    async def get_db_version(self) -> int:
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            pragma = await conn.execute('PRAGMA user_version')
+            pragma = await pragma.fetchall()
+            return pragma[0][0]
+
     async def load_db_item(self, table_name: str) -> dict[int, str]:
         items = {}
 
@@ -308,6 +435,28 @@ class DiscordClient(Bot):
                     trusted_ids.append(trusted_id)
 
         return trusted_ids
+
+    async def load_achievements(self, guild_id: int) -> list[Achievement]:
+        return []
+        ...
+
+    async def load_accounts(self, guild_id: int) -> list[Account]:
+        return []
+        ...
+
+    async def load_settings(self, guild_id: int) -> GuildSettings:
+        ...
+
+        return GuildSettings(
+            max_scrolls=5,
+            roles_are_scrollable=True,
+            subalignments_are_scrollable=True,
+            factions_are_scrollable=True,
+            role_scroll_multiplier=10,
+            subalignment_scroll_multiplier=10,
+            faction_scroll_multiplier=10,
+            accounts_creatable=True
+        )
 
     async def setup_hook(self):
         self.guild_task = self.loop.create_task(self.load_guild_info())
@@ -365,6 +514,9 @@ class DiscordClient(Bot):
             info_categories = [i for i in compiled_classes if isinstance(i, InfoCategory)]
 
             trusted_ids = await self.load_trusted_ids(guild.id)
+            achievements = await self.load_achievements(guild.id)
+            accounts = await self.load_accounts(guild.id)
+            guild_settings = await self.load_settings(guild.id)
 
             guild_info = GuildInfo(
                 guild_id=guild.id,
@@ -373,7 +525,10 @@ class DiscordClient(Bot):
                 roles=list(),
                 info_categories=info_categories,
                 info_tags=list(),
-                trusted_ids=trusted_ids
+                trusted_ids=trusted_ids,
+                achievements=achievements,
+                accounts=accounts,
+                guild_settings=guild_settings
             )
 
             self.guild_info.append(guild_info)
@@ -450,6 +605,26 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
+    async def add_achievement_to_db(self, achievement: Achievement, guild_id: int):
+        ...
+
+    async def delete_achievement_from_db(self, achievement: Achievement, guild_id: int):
+        ...
+
+    async def modify_achievement_in_db(self, achievement: Achievement, guild_id: int):
+        await self.delete_achievement_from_db(achievement, guild_id=guild_id)
+        await self.add_achievement_to_db(achievement, guild_id=guild_id)
+
+    async def add_account_to_db(self, account: Account, guild_id: int):
+        ...
+
+    async def delete_account_from_db(self, account: Account, guild_id: int):
+        ...
+
+    async def modify_account_in_db(self, account: Account, guild_id: int):
+        await self.delete_account_from_db(account, guild_id=guild_id)
+        await self.add_account_to_db(account, guild_id=guild_id)
+
 
 @dataclass(slots=True)
 class Faction(SDGObject):
@@ -478,6 +653,37 @@ class Role(SDGObject):
     forum_tags: set[str] | None = None
 
 
+@dataclass(slots=True)
+class Achievement:
+    id: int
+    name: str
+    description: str
+    role: Role | None = None
+    subalignment: Subalignment | None = None
+    faction: Faction | None = None
+
+
+@dataclass(slots=True)
+class Account:
+    id: int
+    num_wins: int
+    num_loses: int
+    num_draws: int
+    blessed_scrolls: list[Role | Subalignment | Faction]
+    cursed_scrolls: list[Role | Subalignment | Faction]
+    accomplished_achievements: list[Achievement]
+
+
+@dataclass(slots=True)
+class GuildSettings:
+    max_scrolls: int
+    roles_are_scrollable: bool
+    subalignments_are_scrollable: bool
+    factions_are_scrollable: bool
+    role_scroll_multiplier: int
+    subalignment_scroll_multiplier: int
+    faction_scroll_multiplier: int
+    accounts_creatable: bool
 
 
 @dataclass(slots=True)
@@ -489,6 +695,9 @@ class GuildInfo:
     info_categories: list[InfoCategory]
     info_tags: list[InfoTag]
     trusted_ids: list[int]
+    achievements: list[Achievement]
+    accounts: list[Account]
+    guild_settings: GuildSettings
 
     def _get_item_by_id(self, attribute: str, id_:  int) -> type[S] | None:
         items = getattr(self, attribute)
@@ -510,6 +719,12 @@ class GuildInfo:
 
     def get_info_tag(self, id_:  int) -> InfoTag | None:
         return self._get_item_by_id('info_tags', id_)
+
+    def get_achievement(self, id_: int) -> Achievement | None:
+        return self._get_item_by_id('achievement', id_)
+
+    def get_account(self, id_: int) -> Account | None:
+        return self._get_item_by_id('accounts', id_)
 
 
 class SDGException(Exception):

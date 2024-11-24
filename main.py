@@ -7,7 +7,6 @@ import os
 from dotenv import load_dotenv
 from discord.ext.commands import when_mentioned_or
 
-
 from utils import DiscordClient
 
 cogs = [
@@ -17,6 +16,9 @@ cogs = [
     'cogs.random_commands',
     'cogs.subalignment_commands',
     'cogs.trust_commands',
+    'cogs.account_commands',
+    'cogs.achievement_commands',
+    'cogs.setting_commands',
     'cogs.misc_commands',
     'cogs.dev_commands',
     'cogs.error_handler',
