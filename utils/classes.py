@@ -625,6 +625,16 @@ class DiscordClient(Bot):
         await self.delete_account_from_db(account, guild_id=guild_id)
         await self.add_account_to_db(account, guild_id=guild_id)
 
+    async def add_settings_to_db(self, settings: GuildSettings, guild_id: int):
+        ...
+
+    async def delete_settings_from_db(self, settings: GuildSettings, guild_id: int):
+        ...
+
+    async def modify_settings_in_db(self, settings: GuildSettings, guild_id: int):
+        await self.delete_settings_from_db(settings, guild_id)
+        await self.add_settings_to_db(settings, guild_id)
+
 
 @dataclass(slots=True)
 class Faction(SDGObject):
