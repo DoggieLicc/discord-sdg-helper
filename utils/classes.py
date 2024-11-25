@@ -721,7 +721,7 @@ class GuildInfo:
         return self._get_item_by_id('info_tags', id_)
 
     def get_achievement(self, id_: int) -> Achievement | None:
-        return self._get_item_by_id('achievement', id_)
+        return self._get_item_by_id('achievements', id_)
 
     def get_account(self, id_: int) -> Account | None:
         return self._get_item_by_id('accounts', id_)
@@ -874,6 +874,21 @@ class ForumTagTransformer(ChoiceTransformer):
         faction_channel = interaction.guild.get_channel(faction_id)
 
         return faction_channel.get_tag(int(value))
+
+
+class AchievementTransformer(ChoiceTransformer):
+    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
+        guild_info: GuildInfo = get_guild_info(interaction)
+        choice_list = []
+        for achievement in guild_info.achievements:
+            choice_list.append(app_commands.Choice(name=achievement.name, value=str(achievement.id)))
+
+        return choice_list
+
+    def get_value(self, interaction: Interaction, value: Any) -> Achievement:
+        guild_info: GuildInfo = get_guild_info(interaction)
+        achievement = guild_info.get_achievement(int(value))
+        return achievement
 
 
 class PollSelect(discord.ui.Select):
