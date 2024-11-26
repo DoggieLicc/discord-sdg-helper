@@ -26,7 +26,9 @@ class DatabaseHelper:
         self.add_version = False
 
     async def startup(self):
-        self.add_version = not os.path.exists(self.args[0])
+        if not os.path.exists(self.args[0]):
+            self.add_version = True
+
         self.db: asqlite.Connection = await asqlite.connect(*self.args, **self.kwargs)
         if self.add_version:
             await self.set_version()
@@ -44,7 +46,7 @@ class DatabaseHelper:
         async with self.db as conn:
             for table in self.base_tables:
                 column_schema = ', '.join(
-                    f'{col.name} {col.datatype} {col.addit_schema or ""}' for col in table.columns
+                    f'{col.name} {col.datatype}{" " + col.addit_schema if col.addit_schema else ""}' for col in table.columns
                 )
                 command = f"CREATE TABLE IF NOT EXISTS {table.name} ({column_schema})"
                 await conn.execute(command)

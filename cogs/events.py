@@ -39,7 +39,9 @@ class EventsCog(commands.Cog):
             while not self.client.db_loaded:
                 await asyncio.sleep(1)
 
+            await asyncio.sleep(1)
             await self.sync_all()
+            await self.client.post_guild_info_load()
             self.client.first_sync = True
 
             await self.update_custom_activity()
@@ -68,6 +70,17 @@ class EventsCog(commands.Cog):
         if guild_info:
             return
 
+        default_settings = utils.GuildSettings(
+            max_scrolls=5,
+            roles_are_scrollable=True,
+            subalignments_are_scrollable=True,
+            factions_are_scrollable=True,
+            role_scroll_multiplier=10,
+            subalignment_scroll_multiplier=10,
+            faction_scroll_multiplier=10,
+            accounts_creatable=True
+        )
+
         self.client.guild_info.append(GuildInfo(
             guild.id,
             list(),
@@ -75,8 +88,13 @@ class EventsCog(commands.Cog):
             list(),
             list(),
             list(),
-            list()
+            list(),
+            list(),
+            list(),
+            default_settings
         ))
+
+        await self.client.add_settings_to_db(default_settings, guild.id)
 
     @commands.Cog.listener()
     async def on_raw_thread_update(self, payload: discord.RawThreadUpdateEvent):

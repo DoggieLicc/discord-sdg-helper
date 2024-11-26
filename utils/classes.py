@@ -163,6 +163,10 @@ GuildSettingsTable = BaseTable(
     name='guild_settings',
     columns=[
         BaseColumn(
+            name='guild_id',
+            datatype='integer'
+        ),
+        BaseColumn(
             name='max_scrolls',
             datatype='integer'
         ),
@@ -436,27 +440,127 @@ class DiscordClient(Bot):
 
         return trusted_ids
 
-    async def load_achievements(self, guild_id: int) -> list[Achievement]:
-        return []
-        ...
+    async def load_achievements(
+            self,
+            guild_info: GuildInfo
+    ) -> list[Achievement]:
+        achievements = []
+        roles = guild_info.roles
+        subalignments = guild_info.subalignments
+        factions = guild_info.factions
+        guild_id = guild_info.guild_id
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                for row in await cursor.execute('SELECT * FROM achievements WHERE guild_id = (?)', (guild_id,)):
+                    achievement_id = row['id']
+                    achievement_name = row['name']
+                    achievement_description = row['description']
+                    achievement_role_id = row['role_id']
+                    achievement_subalignment_id = row['subalignment_id']
+                    achievement_faction_id = row['faction_id']
 
-    async def load_accounts(self, guild_id: int) -> list[Account]:
-        return []
-        ...
+                    achievement_role = [r for r in roles if r.id == achievement_role_id]
+                    achievement_subalignment = [s for s in subalignments if s.id == achievement_subalignment_id]
+                    achievement_faction = [f for f in factions if f.id == achievement_faction_id]
+
+                    achievements.append(
+                        Achievement(
+                            id=achievement_id,
+                            name=achievement_name,
+                            description=achievement_description,
+                            role=achievement_role[0] if achievement_role else None,
+                            subalignment=achievement_subalignment[0] if achievement_subalignment else None,
+                            faction=achievement_faction[0] if achievement_faction else None
+                        )
+                    )
+
+        return achievements
+
+    async def load_accounts(self, guild_info: GuildInfo) -> list[Account]:
+        accounts = []
+        rsf_list = guild_info.roles + guild_info.subalignments + guild_info.factions
+
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                for row in await cursor.execute('SELECT * FROM accounts WHERE guild_id = (?)', (guild_info.guild_id,)):
+                    account_id = row['user_id']
+                    account_wins = row['num_wins']
+                    account_losses = row['num_loses']
+                    account_draws = row['num_draws']
+                    account_blessed_scrolls = str(row['blessed_scrolls']).split(',')
+                    account_cursed_scrolls = str(row['cursed_scrolls']).split(',')
+                    account_achievements = str(row['accomplished_achievements']).split(',')
+
+                    blessed_scrolls = []
+                    for blessed_scroll in account_blessed_scrolls:
+                        if blessed_scroll:
+                            scroll_id = int(blessed_scroll)
+                            rsf = [r for r in rsf_list if r.id == scroll_id]
+                            if rsf:
+                                blessed_scrolls.append(rsf[0])
+
+                    cursed_scrolls = []
+                    for cursed_scroll in account_cursed_scrolls:
+                        if cursed_scroll:
+                            scroll_id = int(cursed_scroll)
+                            role = [r for r in guild_info.roles if r.id == scroll_id]
+                            if role:
+                                cursed_scrolls.append(role[0])
+
+                    achievements = []
+                    for achievement in account_achievements:
+                        if achievement:
+                            achievement_id = int(achievement)
+                            ach = [a for a in guild_info.achievements if a.id == achievement_id]
+                            if ach:
+                                achievements.append(ach[0])
+
+                    accounts.append(
+                        Account(
+                            id=account_id,
+                            num_wins=account_wins,
+                            num_loses=account_losses,
+                            num_draws=account_draws,
+                            blessed_scrolls=blessed_scrolls,
+                            cursed_scrolls=cursed_scrolls,
+                            accomplished_achievements=achievements
+                        )
+                    )
+
+        return accounts
 
     async def load_settings(self, guild_id: int) -> GuildSettings:
-        ...
+        settings = None
 
-        return GuildSettings(
-            max_scrolls=5,
-            roles_are_scrollable=True,
-            subalignments_are_scrollable=True,
-            factions_are_scrollable=True,
-            role_scroll_multiplier=10,
-            subalignment_scroll_multiplier=10,
-            faction_scroll_multiplier=10,
-            accounts_creatable=True
-        )
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                for row in await cursor.execute('SELECT * FROM guild_settings WHERE guild_id = (?)', (guild_id,)):
+                    settings = GuildSettings(
+                        max_scrolls=row['max_scrolls'],
+                        roles_are_scrollable=row['roles_are_scrollable'],
+                        subalignments_are_scrollable=row['subalignments_are_scrollable'],
+                        factions_are_scrollable=row['factions_are_scrollable'],
+                        role_scroll_multiplier=row['role_scroll_multiplier'],
+                        subalignment_scroll_multiplier=row['subalignment_scroll_multiplier'],
+                        faction_scroll_multiplier=row['faction_scroll_multiplier'],
+                        accounts_creatable=bool(row['accounts_creatable'])
+                )
+
+        if not settings:
+            settings = GuildSettings(
+                max_scrolls=5,
+                roles_are_scrollable=True,
+                subalignments_are_scrollable=True,
+                factions_are_scrollable=True,
+                role_scroll_multiplier=10,
+                subalignment_scroll_multiplier=10,
+                faction_scroll_multiplier=10,
+                accounts_creatable=True
+            )
+
+            await self.add_settings_to_db(settings, guild_id)
+
+        return settings
 
     async def setup_hook(self):
         self.guild_task = self.loop.create_task(self.load_guild_info())
@@ -514,8 +618,6 @@ class DiscordClient(Bot):
             info_categories = [i for i in compiled_classes if isinstance(i, InfoCategory)]
 
             trusted_ids = await self.load_trusted_ids(guild.id)
-            achievements = await self.load_achievements(guild.id)
-            accounts = await self.load_accounts(guild.id)
             guild_settings = await self.load_settings(guild.id)
 
             guild_info = GuildInfo(
@@ -526,14 +628,21 @@ class DiscordClient(Bot):
                 info_categories=info_categories,
                 info_tags=list(),
                 trusted_ids=trusted_ids,
-                achievements=achievements,
-                accounts=accounts,
+                achievements=list(),
+                accounts=list(),
                 guild_settings=guild_settings
             )
 
             self.guild_info.append(guild_info)
 
         self.db_loaded = True
+
+    async def post_guild_info_load(self):
+        for guild_info in self.guild_info:
+            guild_info.achievements = await self.load_achievements(guild_info)
+            guild_info.accounts = await self.load_accounts(guild_info)
+
+            self.replace_guild_info(guild_info)
 
     def replace_guild_info(self, guild_info: GuildInfo):
         try:
@@ -606,30 +715,107 @@ class DiscordClient(Bot):
             await conn.commit()
 
     async def add_achievement_to_db(self, achievement: Achievement, guild_id: int):
-        ...
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'INSERT OR IGNORE INTO achievements VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (
+                        achievement.id,
+                        guild_id,
+                        achievement.name,
+                        achievement.description,
+                        achievement.role.id if achievement.role else None,
+                        achievement.subalignment.id if achievement.subalignment else None,
+                        achievement.faction.id if achievement.faction else None
+                    )
+                )
+
+            await conn.commit()
 
     async def delete_achievement_from_db(self, achievement: Achievement, guild_id: int):
-        ...
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
+                    (
+                        achievement.id,
+                        guild_id
+                    )
+                )
+
+            await conn.commit()
 
     async def modify_achievement_in_db(self, achievement: Achievement, guild_id: int):
         await self.delete_achievement_from_db(achievement, guild_id=guild_id)
         await self.add_achievement_to_db(achievement, guild_id=guild_id)
 
     async def add_account_to_db(self, account: Account, guild_id: int):
-        ...
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'INSERT OR IGNORE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    (
+                        account.id,
+                        guild_id,
+                        account.num_wins,
+                        account.num_loses,
+                        account.num_draws,
+                        ','.join(str(s.id) for s in account.blessed_scrolls),
+                        ','.join(str(s.id) for s in account.cursed_scrolls),
+                        ','.join(str(s.id) for s in account.accomplished_achievements),
+                    )
+                )
+
+            await conn.commit()
 
     async def delete_account_from_db(self, account: Account, guild_id: int):
-        ...
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'DELETE FROM accounts WHERE user_id = (?) AND guild_id = (?)',
+                    (
+                        account.id,
+                        guild_id
+                    )
+                )
+
+            await conn.commit()
 
     async def modify_account_in_db(self, account: Account, guild_id: int):
         await self.delete_account_from_db(account, guild_id=guild_id)
         await self.add_account_to_db(account, guild_id=guild_id)
 
     async def add_settings_to_db(self, settings: GuildSettings, guild_id: int):
-        ...
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'INSERT OR IGNORE INTO guild_settings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (
+                        guild_id,
+                        settings.max_scrolls,
+                        settings.roles_are_scrollable,
+                        settings.factions_are_scrollable,
+                        settings.subalignments_are_scrollable,
+                        settings.role_scroll_multiplier,
+                        settings.subalignment_scroll_multiplier,
+                        settings.faction_scroll_multiplier,
+                        settings.accounts_creatable
+                    )
+                )
+
+            await conn.commit()
 
     async def delete_settings_from_db(self, settings: GuildSettings, guild_id: int):
-        ...
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'DELETE FROM guild_settings WHERE guild_id = (?)',
+                    (
+                        guild_id
+                    )
+                )
+
+            await conn.commit()
 
     async def modify_settings_in_db(self, settings: GuildSettings, guild_id: int):
         await self.delete_settings_from_db(settings, guild_id)

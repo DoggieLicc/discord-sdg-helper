@@ -105,6 +105,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
         for account in guild_info.accounts:
             if achievement in account.accomplished_achievements:
                 account.accomplished_achievements.remove(achievement)
+                await self.client.modify_account_in_db(account, interaction.guild_id)
 
         guild_info.achievements.remove(achievement)
         self.client.replace_guild_info(guild_info)
@@ -318,7 +319,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
             raise SDGException(f'There already exists an achievement with the name "{dupe_achievement[0].name}"')
 
         new_achievement = Achievement(
-            id=interaction.id,
+            id=achievement.id,
             name=name,
             description=description,
             role=role,
