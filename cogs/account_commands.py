@@ -4,7 +4,9 @@ from discord import app_commands, Interaction
 from discord.ext import commands
 
 import utils
-from utils import SDGException, DiscordClient, Account
+from utils import SDGException, DiscordClient, Account, Role, Subalignment, Faction, RSFTransformer, ScrollTransformer
+
+import typing
 
 
 class DeleteConfirm(discord.ui.View):
@@ -63,6 +65,8 @@ class DeleteConfirm(discord.ui.View):
 
 @app_commands.guild_only()
 class AccountCog(commands.GroupCog, group_name='account'):
+    scroll_group = app_commands.Group(name='scroll', description='Scroll commands')
+
     def __init__(self, client):
         self.client: DiscordClient = client
 
@@ -196,6 +200,126 @@ class AccountCog(commands.GroupCog, group_name='account'):
             self.client.replace_guild_info(guild_info)
         else:
             pass
+
+    @scroll_group.command(name='view')
+    @app_commands.describe(member='The member to view scrolls of. You need to be trusted to view other\'s scrolls')
+    async def scroll_view(self, interaction: Interaction, member: discord.User | None = None):
+        """View your own or someone else's equipped scrolls"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+
+        if interaction.user != member and not await utils.mod_check(interaction):
+            raise SDGException('You don\'t have permission to view other account\'s scrolls.')
+
+        member = member or interaction.user
+        account = guild_info.get_account(member.id)
+
+        if not account:
+            raise SDGException(f'The member {member.mention} does not have an account!')
+
+        embed = utils.create_embed(
+            interaction.user,
+            title=f'Listing {member}\'s scrolls'
+        )
+
+        embed.add_field(
+            name='Blessed Scrolls',
+            value='\n'.join(s.name for s in account.blessed_scrolls) or 'No scrolls',
+            inline=False
+        )
+
+        embed.add_field(
+            name='Cursed Scrolls',
+            value='\n'.join(s.name for s in account.cursed_scrolls) or 'No scrolls',
+            inline=False
+        )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @scroll_group.command(name='add')
+    @app_commands.describe(role_subalignment_faction='The role, subalignment, or faction to scroll for')
+    @app_commands.describe(scroll_type='Scroll type, Blessed increases chance, Cursed decreases chance,')
+    async def scroll_add(
+            self,
+            interaction: Interaction,
+            role_subalignment_faction: app_commands.Transform[Role | Subalignment | Faction, RSFTransformer],
+            scroll_type: typing.Literal['Blessed', 'Cursed']
+    ):
+        """Add a scroll to your account"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        account = guild_info.get_account(interaction.user.id)
+        settings = guild_info.guild_settings
+
+        if not account:
+            raise SDGException(f'The member {interaction.user.mention} does not have an account.')
+
+        if role_subalignment_faction in account.blessed_scrolls:
+            raise SDGException(f'The scroll "{role_subalignment_faction.name}" is already equipped in blessed scrolls')
+
+        if role_subalignment_faction in account.cursed_scrolls:
+            raise SDGException(f'The scroll "{role_subalignment_faction.name}" is already equipped in cursed scrolls')
+
+        if not settings.roles_are_scrollable and isinstance(role_subalignment_faction, Role):
+            raise SDGException(f'Role scrolling is disabled in this server')
+
+        if not settings.subalignments_are_scrollable and isinstance(role_subalignment_faction, Subalignment):
+            raise SDGException(f'Subalignment scrolling is disabled in this server')
+
+        if not settings.factions_are_scrollable and isinstance(role_subalignment_faction, Faction):
+            raise SDGException(f'Faction scrolling is disabled in this server')
+
+        if scroll_type == 'Cursed' and not isinstance(role_subalignment_faction, Role):
+            raise SDGException(f'Can only cursed scroll for roles')
+
+        if scroll_type == 'Blessed':
+            if len(account.blessed_scrolls) + 1 > settings.max_scrolls:
+                raise SDGException(f'The server limit for scrolls is {settings.max_scrolls}')
+            account.blessed_scrolls.append(role_subalignment_faction)
+        else:
+            if len(account.cursed_scrolls) + 1 > settings.max_scrolls:
+                raise SDGException(f'The limit for scrolls is {settings.max_scrolls}')
+            account.cursed_scrolls.append(role_subalignment_faction)
+
+        self.client.replace_guild_info(guild_info)
+        await self.client.modify_account_in_db(account, interaction.guild_id)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Scroll Added!',
+            description=f'Added "{role_subalignment_faction.name}" to {scroll_type}!'
+        )
+
+        await interaction.response.send_message(embed=embed)
+
+    @scroll_group.command(name='remove')
+    @app_commands.describe(scroll='The scroll to remove')
+    async def scroll_remove(
+            self,
+            interaction: Interaction,
+            scroll: app_commands.Transform[Role | Subalignment | Faction, ScrollTransformer],
+    ):
+        """Removes a scroll from your account"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        account = guild_info.get_account(interaction.user.id)
+        scroll_type = ''
+
+        if scroll in account.blessed_scrolls:
+            account.blessed_scrolls.remove(scroll)
+            scroll_type = 'Blessed'
+
+        if scroll in account.cursed_scrolls:
+            account.cursed_scrolls.remove(scroll)
+            scroll_type = 'Cursed'
+
+        self.client.replace_guild_info(guild_info)
+        await self.client.modify_account_in_db(account, interaction.guild_id)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Scroll removed!',
+            description=f'Removed scroll {scroll_type} - {scroll.name} successfully!'
+        )
+
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

@@ -680,7 +680,7 @@ class Account:
     num_loses: int
     num_draws: int
     blessed_scrolls: list[Role | Subalignment | Faction]
-    cursed_scrolls: list[Role | Subalignment | Faction]
+    cursed_scrolls: list[Role]
     accomplished_achievements: list[Achievement]
 
 
@@ -858,6 +858,59 @@ class RoleTransformer(ChoiceTransformer):
         guild_info: GuildInfo = get_guild_info(interaction)
         role = guild_info.get_role(int(value))
         return role
+
+
+class RSFTransformer(ChoiceTransformer):
+    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
+        guild_info: GuildInfo = get_guild_info(interaction)
+        choice_list = []
+        for item in guild_info.roles + guild_info.subalignments + guild_info.factions:
+            choice_list.append(app_commands.Choice(name=item.name, value=str(item.id)))
+
+        return choice_list
+
+    def get_value(self, interaction: Interaction, value: Any) -> Role | Subalignment | Faction:
+        guild_info: GuildInfo = get_guild_info(interaction)
+        role = guild_info.get_role(int(value))
+        subalignment = guild_info.get_subalignment(int(value))
+        faction = guild_info.get_faction(int(value))
+        return role or subalignment or faction
+
+
+class ScrollTransformer(ChoiceTransformer):
+    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
+        guild_info: GuildInfo = get_guild_info(interaction)
+        account = guild_info.get_account(interaction.user.id)
+        if not account:
+            return [app_commands.Choice(name='You don\'t have an account!', value=0)]
+
+        choice_list = []
+        for item in account.blessed_scrolls:
+            name = f'Blessed - {item.name}'
+            choice_list.append(app_commands.Choice(name=name, value=str(item.id)))
+
+        for item in account.cursed_scrolls:
+            name = f'Cursed - {item.name}'
+            choice_list.append(app_commands.Choice(name=name, value=str(item.id)))
+
+        if not choice_list:
+            return [app_commands.Choice(name='You don\'t have any scrolls equipped!', value=0)]
+
+        return choice_list
+
+    def get_value(self, interaction: Interaction, value: Any) -> Role | Subalignment | Faction:
+        guild_info: GuildInfo = get_guild_info(interaction)
+        account = guild_info.get_account(interaction.user.id)
+        if not account:
+            raise SDGException('You don\'t have an account!')
+
+        all_scrolls = account.blessed_scrolls + account.cursed_scrolls
+        scroll = [s for s in all_scrolls if s.id == int(value)]
+
+        if not scroll:
+            raise SDGException('Invalid scroll!')
+
+        return scroll[0]
 
 
 class ForumTagTransformer(ChoiceTransformer):

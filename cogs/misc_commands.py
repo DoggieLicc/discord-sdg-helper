@@ -1,6 +1,7 @@
 import asyncio
 import random
 import re
+from dataclasses import dataclass
 
 import discord
 
@@ -9,6 +10,12 @@ from discord.ext import commands
 from utils import GuildInfo, Faction, Role, mod_check, get_guild_info, SDGException, Subalignment, PaginatedMenu
 
 import utils
+
+
+@dataclass(slots=True)
+class Player:
+    user: discord.User
+    role: Role
 
 
 class RoleFactionMenu(PaginatedMenu):
@@ -34,7 +41,69 @@ class RoleFactionMenu(PaginatedMenu):
 
 class MiscCog(commands.Cog):
     def __init__(self, client):
-        self.client = client
+        self.client: utils.DiscordClient = client
+
+    def generate_lots(self, player, roles, guild_info: GuildInfo, use_scrolls: bool) -> list[int]:
+        lots: list[int] = []
+
+        account = guild_info.get_account(player.id)
+        blessed_scrolls = account.blessed_scrolls if account else []
+        cursed_scrolls = account.cursed_scrolls if account else []
+
+        role_multiplier = guild_info.guild_settings.role_scroll_multiplier
+        subalignment_multiplier = guild_info.guild_settings.subalignment_scroll_multiplier
+        faction_multiplier = guild_info.guild_settings.faction_scroll_multiplier
+        default_lots = 10
+
+        for role in roles:
+            lots_num = default_lots
+
+            if use_scrolls:
+                for blessed_scroll in blessed_scrolls:
+                    if isinstance(blessed_scroll, utils.Role):
+                        if blessed_scroll == role:
+                            lots_num += default_lots * role_multiplier
+                    if isinstance(blessed_scroll, Subalignment):
+                        subalignment_roles = self.client.get_subalignment_roles(blessed_scroll)
+                        if role in subalignment_roles:
+                            lots_num += default_lots * subalignment_multiplier
+                    if isinstance(blessed_scroll, Faction):
+                        faction_roles = self.client.get_faction_roles(blessed_scroll)
+                        if role in faction_roles:
+                            lots_num += default_lots * faction_multiplier
+
+                for cursed_scroll in cursed_scrolls:
+                    if role == cursed_scroll:
+                        lots_num = 1
+
+            lots.append(lots_num)
+
+        return lots
+
+    def assign_roles_to_players(
+            self,
+            players: list[discord.User],
+            roles: list[Role],
+            guild_info: GuildInfo,
+            use_scrolls: bool = True
+    ) -> list[Player]:
+        random.shuffle(players)
+        random.shuffle(roles)
+
+        assigned_players = []
+
+        for player in players:
+            role_lots = self.generate_lots(player, roles, guild_info, use_scrolls)
+
+            chosen_role = random.choices(roles, weights=role_lots)[0]
+            gen_player = Player(player, chosen_role)
+            roles.remove(chosen_role)
+
+            assigned_players.append(gen_player)
+
+        random.shuffle(assigned_players)
+
+        return assigned_players
 
     @app_commands.command(name='role')
     @app_commands.guild_only()
@@ -74,7 +143,6 @@ class MiscCog(commands.Cog):
                 num_reactions = reaction.normal_count
 
                 reaction_str = f' | {num_reactions} {emoji}'
-
 
         embed = utils.create_embed(
             interaction.user,
@@ -263,6 +331,7 @@ class MiscCog(commands.Cog):
     @app_commands.describe(thread_name='The name to give the threads, by default it will be "Mod Thread"')
     @app_commands.describe(invitable='Whether to allow non-moderators to add others to their thread. Defaults to False')
     @app_commands.describe(roles_link='Link to message containing the output of "Generate Rolelist Roles"')
+    @app_commands.describe(use_account_scrolls='Whether to use account scrolls if roles_link is specified. Defaults to True')
     async def generate_mod_threads(
             self,
             interaction: discord.Interaction,
@@ -270,7 +339,8 @@ class MiscCog(commands.Cog):
             additional_message: str = '',
             thread_name: str = 'Mod Thread',
             invitable: bool = False,
-            roles_link: str = ''
+            roles_link: str = '',
+            use_account_scrolls: bool = True
     ):
         """Generate mod threads using mentions from the provided message"""
 
@@ -329,6 +399,10 @@ class MiscCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
+        distributed_players = []
+        if generated_roles:
+            distributed_players = self.assign_roles_to_players(message_mentions, generated_roles, guild_info, use_account_scrolls)
+
         for member in message_mentions:
             thread = await message.channel.create_thread(
                 name=f'{member} {thread_name}',
@@ -338,9 +412,10 @@ class MiscCog(commands.Cog):
 
             message_to_send = member.mention + ' ' + interaction.user.mention + '\n\n' + additional_message
 
-            if generated_roles:
-                random_role = generated_roles.pop(0)
-                message_to_send = message_to_send.strip() + f'\n\n**You are the <#{random_role.id}>**'
+            if distributed_players:
+                player = [p for p in distributed_players if p.user == member][0]
+                random_role = player.role
+                message_to_send = message_to_send.strip() + f'\n\n**You are the {random_role.name} (<#{random_role.id}>)**'
 
             await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
             await thread.leave()
