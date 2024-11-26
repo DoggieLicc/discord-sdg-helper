@@ -66,6 +66,7 @@ class DeleteConfirm(discord.ui.View):
 @app_commands.guild_only()
 class AccountCog(commands.GroupCog, group_name='account'):
     scroll_group = app_commands.Group(name='scroll', description='Scroll commands')
+    game_group = app_commands.Group(name='game', description='Game commands')
 
     def __init__(self, client):
         self.client: DiscordClient = client
@@ -320,6 +321,98 @@ class AccountCog(commands.GroupCog, group_name='account'):
         )
 
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.check(utils.mod_check)
+    @game_group.command(name='add')
+    @app_commands.describe(result='The game result to add')
+    @app_commands.describe(member='Add a game to this singular member')
+    @app_commands.describe(member_mentions_message_id='Add a game to all players mentioned in this message ID')
+    async def game_add(
+            self,
+            interaction: Interaction,
+            result: typing.Literal['WIN', 'LOSS', 'DRAW'],
+            member: discord.User = None,
+            member_mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
+    ):
+        """Add a game result to a player or multiple players"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+
+        if member and member_mentions_message_id:
+            raise SDGException('Can\'t use both members and member_mentions_message_id!')
+
+        members = [member] if member else member_mentions_message_id.mentions
+        accounts = [guild_info.get_account(m.id) for m in members]
+        accounts = [a for a in accounts if a]
+
+        if not accounts:
+            raise SDGException('No members provided have accounts!')
+
+        for account in accounts:
+            if result == 'WIN':
+                account.num_wins += 1
+            elif result == 'LOSS':
+                account.num_loses += 1
+            else:
+                account.num_draws += 1
+
+            await self.client.modify_account_in_db(account, interaction.guild_id)
+
+        self.client.replace_guild_info(guild_info)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Accounts updated!',
+            description=f'Successfully added a {result} to {len(accounts)} accounts!'
+        )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.check(utils.mod_check)
+    @game_group.command(name='set')
+    @app_commands.describe(result='The game result to set')
+    @app_commands.describe(amount='The amount to set')
+    @app_commands.describe(member='Set the games of this singular member')
+    @app_commands.describe(member_mentions_message_id='Set games to all players mentioned in this message ID')
+    async def game_set(
+            self,
+            interaction: Interaction,
+            result: typing.Literal['WIN', 'LOSS', 'DRAW'],
+            amount: int,
+            member: discord.User = None,
+            member_mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
+    ):
+        """Sets the amount of games to a player or multiple players"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+
+        if member and member_mentions_message_id:
+            raise SDGException('Can\'t use both members and member_mentions_message_id!')
+
+        members = [member] if member else member_mentions_message_id.mentions
+        accounts = [guild_info.get_account(m.id) for m in members]
+        accounts = [a for a in accounts if a]
+
+        if not accounts:
+            raise SDGException('No members provided have accounts!')
+
+        for account in accounts:
+            if result == 'WIN':
+                account.num_wins = amount
+            elif result == 'LOSS':
+                account.num_loses = amount
+            else:
+                account.num_draws = amount
+
+            await self.client.modify_account_in_db(account, interaction.guild_id)
+
+        self.client.replace_guild_info(guild_info)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Accounts updated!',
+            description=f'Successfully set {result}={amount} to {len(accounts)} accounts!'
+        )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot):

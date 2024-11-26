@@ -1,6 +1,7 @@
 import asyncio
 import random
 import re
+import typing
 from dataclasses import dataclass
 
 import discord
@@ -37,6 +38,44 @@ class RoleFactionMenu(PaginatedMenu):
             description=page
         )
         return {'embed': embed}
+
+
+class LeaderboardMenu(PaginatedMenu):
+    def __init__(self, *args, **kwargs):
+        self.rank = 1
+        super().__init__(*args, **kwargs)
+
+    def get_num(self, item: utils.Account) -> str:
+        ...
+
+    def format_line(self, item: utils.Account) -> str:
+        string = f'#{self.rank} - <@{item.id}> - {self.get_num(item)}'
+        self.rank += 1
+        return string
+
+    async def get_page_contents(self) -> dict:
+        page = self.paginator.pages[self.current_page-1]
+        embed = utils.create_embed(
+            self.owner,
+            title=f'Leaderboard - {len(self.items)} players ({self.current_page}/{self.max_page})',
+            description=page
+        )
+        return {'embed': embed}
+
+
+class WinLeaderboardMenu(LeaderboardMenu):
+    def get_num(self, item: utils.Account) -> str:
+        return f'{item.num_wins} Wins'
+
+
+class WLRatioLeaderboardMenu(LeaderboardMenu):
+    def get_num(self, item: utils.Account) -> str:
+        if item.num_loses == 0:
+            ratio = float(item.num_wins)
+        else:
+            ratio = item.num_wins / item.num_loses
+
+        return f'{ratio} W/L'
 
 
 class MiscCog(commands.Cog):
@@ -314,6 +353,36 @@ class MiscCog(commands.Cog):
             owner=interaction.user,
             items=valid_roles
         )
+
+        contents = await view.get_page_contents()
+
+        if view.max_page == 1:
+            view = discord.utils.MISSING
+
+        await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
+
+    @app_commands.command(name='leaderboard')
+    @app_commands.describe(ranking='The ranking to view')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
+    async def leaderboard(
+            self,
+            interaction: discord.Interaction,
+            ranking: typing.Literal['# of Wins', 'W/L Ratio'],
+            ephemeral: bool = False
+    ):
+        """View the server leaderboard"""
+        guild_info: utils.GuildInfo = get_guild_info(interaction)
+        accounts = guild_info.accounts
+
+        if ranking == '# of Wins':
+            accounts.sort(key=lambda a: a.num_wins, reverse=True)
+            view = WinLeaderboardMenu(interaction.user, accounts)
+        else:
+            accounts.sort(
+                key=lambda a: (a.num_wins / a.num_loses) if a.num_loses != 0 else float(a.num_wins),
+                reverse=True
+            )
+            view = WLRatioLeaderboardMenu(interaction.user, accounts)
 
         contents = await view.get_page_contents()
 
