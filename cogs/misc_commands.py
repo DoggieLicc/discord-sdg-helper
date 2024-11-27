@@ -79,6 +79,11 @@ class WLRatioLeaderboardMenu(LeaderboardMenu):
         return f'{ratio} W/L'
 
 
+class AchievementLeaderboardMenu(LeaderboardMenu):
+    def get_num(self, item: utils.Account) -> str:
+        return f'{len(item.accomplished_achievements)} Achievements'
+
+
 class MiscCog(commands.Cog):
     def __init__(self, client):
         self.client: utils.DiscordClient = client
@@ -369,7 +374,7 @@ class MiscCog(commands.Cog):
     async def leaderboard(
             self,
             interaction: discord.Interaction,
-            ranking: typing.Literal['# of Wins', 'W/L Ratio'],
+            ranking: typing.Literal['# of Wins', 'W/L Ratio', '# of Achievements'],
             ephemeral: bool = False
     ):
         """View the server leaderboard"""
@@ -379,6 +384,9 @@ class MiscCog(commands.Cog):
         if ranking == '# of Wins':
             accounts.sort(key=lambda a: a.num_wins, reverse=True)
             view = WinLeaderboardMenu(interaction.user, accounts)
+        elif ranking == '# of Achievements':
+            accounts.sort(key=lambda a: len(a.accomplished_achievements), reverse=True)
+            view = AchievementLeaderboardMenu(interaction.user, accounts)
         else:
             accounts.sort(
                 key=lambda a: (a.num_wins / a.num_loses) if a.num_loses != 0 else float(a.num_wins),
