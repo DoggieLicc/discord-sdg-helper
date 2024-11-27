@@ -85,9 +85,12 @@ class ErrorCog(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
         except (discord.InteractionResponded, discord.NotFound):
             try:
-                await interaction.channel.send(embed=embed)
-            except discord.DiscordException:
-                print(f'Unable to respond to exception in {interaction.channel.name} ({interaction.channel.id})')
+                await interaction.followup.send(embed=embed)
+            except (discord.InteractionResponded, discord.NotFound):
+                try:
+                    await interaction.channel.send(embed=embed)
+                except discord.DiscordException:
+                    print(f'Unable to respond to exception in {interaction.channel.name} ({interaction.channel.id})')
 
 
 async def setup(bot):
