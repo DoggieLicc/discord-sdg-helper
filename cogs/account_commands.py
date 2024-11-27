@@ -115,6 +115,47 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name='masscreate')
+    @app_commands.check(utils.admin_check)
+    async def mass_create_accounts(self, interaction: Interaction):
+        """Create accounts for ALL server members"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+
+        await interaction.response.defer()
+
+        new_accounts = []
+        for member in interaction.guild.members:
+            existing_account = guild_info.get_account(member.id)
+            if member.bot or existing_account:
+                continue
+
+            new_account = Account(
+                id=member.id,
+                num_wins=0,
+                num_loses=0,
+                num_draws=0,
+                blessed_scrolls=[],
+                cursed_scrolls=[],
+                accomplished_achievements=[]
+            )
+
+            await self.client.add_account_to_db(new_account, interaction.guild_id)
+            new_accounts.append(new_account)
+
+        if not new_accounts:
+            raise SDGException('All members already have accounts!')
+
+        guild_info.accounts += new_accounts
+        self.client.replace_guild_info(guild_info)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Accounts created!',
+            description=f'Created {len(new_accounts)} accounts successfully!'
+        )
+
+        await interaction.followup.send(embed=embed)
+
     @app_commands.command(name='view')
     @app_commands.describe(member='The member to view the account of. By default this will be your account')
     @app_commands.describe(ephemeral='Whether to only show the response to you. Scroll information is shown if True. Defaults to False')
