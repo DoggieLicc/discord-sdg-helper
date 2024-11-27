@@ -17,6 +17,7 @@ import utils
 class Player:
     user: discord.User
     role: Role
+    weight: tuple[list[Role], list[int]]
 
 
 class RoleFactionMenu(PaginatedMenu):
@@ -31,7 +32,7 @@ class RoleFactionMenu(PaginatedMenu):
         return f'{emoji_str}{item.name} (<#{item.id}>)'
 
     async def get_page_contents(self) -> dict:
-        page = self.paginator.pages[self.current_page-1]
+        page = self.paginator.pages[self.current_page - 1]
         embed = utils.create_embed(
             self.owner,
             title=f'Listing {len(self.items)} roles ({self.current_page}/{self.max_page})',
@@ -54,7 +55,7 @@ class LeaderboardMenu(PaginatedMenu):
         return string
 
     async def get_page_contents(self) -> dict:
-        page = self.paginator.pages[self.current_page-1]
+        page = self.paginator.pages[self.current_page - 1]
         embed = utils.create_embed(
             self.owner,
             title=f'Leaderboard - {len(self.items)} players ({self.current_page}/{self.max_page})',
@@ -135,7 +136,8 @@ class MiscCog(commands.Cog):
             role_lots = self.generate_lots(player, roles, guild_info, use_scrolls)
 
             chosen_role = random.choices(roles, weights=role_lots)[0]
-            gen_player = Player(player, chosen_role)
+            tup = roles.copy(), role_lots
+            gen_player = Player(player, chosen_role, tup)
             roles.remove(chosen_role)
 
             assigned_players.append(gen_player)
@@ -391,6 +393,126 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
 
+    @app_commands.command(name='assignroles')
+    @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
+    @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
+    @app_commands.describe(use_account_scrolls='Whether to use account scrolls. Defaults to True')
+    @app_commands.describe(details='Display additional details about role distribution. Defaults to False')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to True')
+    @app_commands.check(mod_check)
+    async def assign_roles_cmd(
+            self,
+            interaction: discord.Interaction,
+            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
+            roles_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
+            use_account_scrolls: bool = True,
+            details: bool = False,
+            ephemeral: bool = True,
+    ):
+        """Assign generated roles to players using their account scrolls."""
+        guild_info: utils.GuildInfo = get_guild_info(interaction)
+        message_mentions = mentions_message.mentions
+        role_mentions = mentions_message.role_mentions
+        settings = guild_info.guild_settings
+
+        channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
+
+        generated_roles = []
+        for match in re.finditer(channel_mention_regex, roles_message.content):
+            channel_id = match.group(1)
+            role = [r for r in guild_info.roles if int(channel_id) == r.id]
+            if role:
+                generated_roles.append(role[0])
+
+        random.shuffle(generated_roles)
+
+        for role in role_mentions:
+            for member in role.members:
+                if member not in message_mentions:
+                    message_mentions.append(member)
+
+        if not generated_roles:
+            raise SDGException(f'No roles found in provided message!')
+
+        if len(generated_roles) != len(message_mentions):
+            raise SDGException(f'Mismatch between amount of provided roles '
+                               f'({len(generated_roles)}) and amount of mentioned players ({len(message_mentions)})')
+
+        if not message_mentions:
+            raise SDGException('No users or roles are mentioned in that message!')
+
+        if not interaction.channel.type == discord.ChannelType.text:
+            raise SDGException('Can\'t use in non-text channels!')
+
+        await interaction.response.defer(ephemeral=ephemeral)
+
+        distributed_players = self.assign_roles_to_players(
+            message_mentions,
+            generated_roles,
+            guild_info,
+            use_account_scrolls
+        )
+
+        role_str = '\n'.join(f'{p.user.mention} - {p.role.name} (<#{p.role.id}>)' for p in distributed_players)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Roles distributed!',
+            description=role_str
+        )
+
+        file = None
+
+        if details:
+            details_str = f'ROLE SCROLL MULTIPLIER: {settings.role_scroll_multiplier}\n' \
+                          f'SUBALIGNMENT SCROLL MULTIPLIER: {settings.subalignment_scroll_multiplier}\n' \
+                          f'FACTION SCROLL MULTIPLIER: {settings.faction_scroll_multiplier}\n\n' \
+                          f'------------ SCROLLS ------------\n'
+
+            # Scroll details
+            for player in distributed_players:
+                user = player.user
+                player_scroll_str = f'{user}:\n'
+                account = guild_info.get_account(user.id)
+                if not account:
+                    player_scroll_str += 'No account!\n'
+                else:
+                    blessed_scroll_str = 'Blessed: '
+                    blessed_scrolls = account.blessed_scrolls
+                    if not blessed_scrolls:
+                        blessed_scroll_str += 'None'
+                    else:
+                        blessed_scroll_str += ', '.join(s.name for s in blessed_scrolls)
+                    player_scroll_str += blessed_scroll_str + '\n'
+                    
+                    cursed_scroll_str = 'Cursed: '
+                    cursed_scrolls = account.cursed_scrolls
+                    if not cursed_scrolls:
+                        cursed_scroll_str += 'None'
+                    else:
+                        cursed_scroll_str += ', '.join(s.name for s in cursed_scrolls)
+                    player_scroll_str += cursed_scroll_str + '\n'
+
+                details_str += player_scroll_str + '\n'
+
+            details_str += '------------ ROLE WEIGHTS ------------\n'
+
+            for player in distributed_players:
+                roles = player.weight[0]
+                weight_nums = player.weight[1]
+                weight_str = f'{player.user}: '
+
+                for i in range(len(roles)):
+                    role = roles[i]
+                    weight_num = weight_nums[i]
+                    weight_str += f'{role.name}:{weight_num} | '
+
+                details_str += weight_str + '\n'
+
+            file = utils.str_to_file(details_str.strip('\n |'), filename='details.txt')
+
+        await interaction.followup.send(embed=embed, file=file or discord.utils.MISSING)
+
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
     @app_commands.checks.bot_has_permissions(manage_threads=True, create_private_threads=True)
@@ -454,7 +576,12 @@ class MiscCog(commands.Cog):
 
         distributed_players = []
         if generated_roles:
-            distributed_players = self.assign_roles_to_players(message_mentions, generated_roles, guild_info, use_account_scrolls)
+            distributed_players = self.assign_roles_to_players(
+                message_mentions,
+                generated_roles,
+                guild_info,
+                use_account_scrolls
+            )
 
         for member in message_mentions:
             thread = await message.channel.create_thread(
