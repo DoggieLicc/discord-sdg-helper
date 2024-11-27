@@ -395,48 +395,35 @@ class MiscCog(commands.Cog):
     @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
     @app_commands.checks.bot_has_permissions(manage_threads=True, create_private_threads=True)
     @app_commands.command(name='generatethreads')
-    @app_commands.describe(mentions_message_id='The ID of the message to get mentions from. (Use google to search how)')
+    @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
     @app_commands.describe(additional_message='Additonal message to send to each thread. Useful for mentioning a role etc.')
     @app_commands.describe(thread_name='The name to give the threads, by default it will be "Mod Thread"')
     @app_commands.describe(invitable='Whether to allow non-moderators to add others to their thread. Defaults to False')
-    @app_commands.describe(roles_link='Link to message containing the output of "Generate Rolelist Roles"')
+    @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
     @app_commands.describe(use_account_scrolls='Whether to use account scrolls if roles_link is specified. Defaults to True')
     async def generate_mod_threads(
             self,
             interaction: discord.Interaction,
-            mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer],
+            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
             additional_message: str = '',
             thread_name: str = 'Mod Thread',
             invitable: bool = False,
-            roles_link: str = '',
+            roles_message: app_commands.Transform[discord.Message, utils.MessageTransformer] | None = None,
             use_account_scrolls: bool = True
     ):
         """Generate mod threads using mentions from the provided message"""
 
-        message = mentions_message_id
+        message = mentions_message
         guild_info = get_guild_info(interaction)
 
         message_mentions = message.mentions
         role_mentions = message.role_mentions
 
-        link_regex = re.compile(
-            r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
-            r"/channels/[0-9]{15,19}/(?P<channel_id>"
-            r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
-        )
-
         channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
 
         generated_roles = []
-        match = re.search(link_regex, roles_link)
-        if match:
-            channel_id = match.group('channel_id')
-            message_id = match.group('message_id')
-
-            channel = interaction.guild.get_channel_or_thread(channel_id) or await interaction.guild.fetch_channel(channel_id)
-            message = await channel.fetch_message(message_id)
-
-            for match in re.finditer(channel_mention_regex, message.content):
+        if roles_message:
+            for match in re.finditer(channel_mention_regex, roles_message.content):
                 channel_id = match.group(1)
                 role = [r for r in guild_info.roles if int(channel_id) == r.id]
                 if role:
@@ -449,10 +436,7 @@ class MiscCog(commands.Cog):
                 if member not in message_mentions:
                     message_mentions.append(member)
 
-        if roles_link and not match:
-            raise SDGException(f'Invalid roles link! It must be a Discord link to a message')
-
-        if roles_link and not generated_roles:
+        if roles_message and not generated_roles:
             raise SDGException(f'No roles found in provided message!')
 
         if generated_roles:

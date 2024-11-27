@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import re
+
 import discord
 import asqlite
 
@@ -931,8 +933,26 @@ class SDGException(Exception):
 class MessageTransformer(app_commands.Transformer):
     async def transform(self, interaction: Interaction, value: str, /) -> Any:
         try:
-            message = await interaction.channel.fetch_message(int(value))
-            return message
+            if value.isnumeric():
+                message = await interaction.channel.fetch_message(int(value))
+                return message
+            else:
+                link_regex = re.compile(
+                    r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
+                    r"/channels/[0-9]{15,19}/(?P<channel_id>"
+                    r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
+                )
+
+                match = re.search(link_regex, value)
+                if match:
+                    channel_id = match.group('channel_id')
+                    message_id = match.group('message_id')
+
+                    channel = (interaction.guild.get_channel_or_thread(channel_id) or
+                               await interaction.guild.fetch_channel(channel_id))
+
+                    message = await channel.fetch_message(message_id)
+                    return message
         except discord.DiscordException:
             raise SDGException('Invalid message ID! Message must be in the same channel as this one')
 
