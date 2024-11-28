@@ -539,9 +539,9 @@ class DiscordClient(Bot):
                 for row in await cursor.execute('SELECT * FROM guild_settings WHERE guild_id = (?)', (guild_id,)):
                     settings = GuildSettings(
                         max_scrolls=row['max_scrolls'],
-                        roles_are_scrollable=row['roles_are_scrollable'],
-                        subalignments_are_scrollable=row['subalignments_are_scrollable'],
-                        factions_are_scrollable=row['factions_are_scrollable'],
+                        roles_are_scrollable=bool(row['roles_are_scrollable']),
+                        subalignments_are_scrollable=bool(row['subalignments_are_scrollable']),
+                        factions_are_scrollable=bool(row['factions_are_scrollable']),
                         role_scroll_multiplier=row['role_scroll_multiplier'],
                         subalignment_scroll_multiplier=row['subalignment_scroll_multiplier'],
                         faction_scroll_multiplier=row['faction_scroll_multiplier'],
