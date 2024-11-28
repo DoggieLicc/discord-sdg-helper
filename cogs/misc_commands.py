@@ -84,6 +84,11 @@ class AchievementLeaderboardMenu(LeaderboardMenu):
         return f'{len(item.accomplished_achievements)} Achievements'
 
 
+class GamesPlayedLeaderboardMenu(LeaderboardMenu):
+    def get_num(self, item: utils.Account) -> str:
+        return f'{item.num_wins + item.num_loses + item.num_draws} Games Played'
+
+
 class MiscCog(commands.Cog):
     def __init__(self, client):
         self.client: utils.DiscordClient = client
@@ -374,7 +379,12 @@ class MiscCog(commands.Cog):
     async def leaderboard(
             self,
             interaction: discord.Interaction,
-            ranking: typing.Literal['# of Wins', 'W/L Ratio', '# of Achievements'],
+            ranking: typing.Literal[
+                '# of Wins',
+                'W/L Ratio',
+                '# of Achievements',
+                '# of Games Played'
+            ],
             ephemeral: bool = False
     ):
         """View the server leaderboard"""
@@ -387,6 +397,9 @@ class MiscCog(commands.Cog):
         elif ranking == '# of Achievements':
             accounts.sort(key=lambda a: len(a.accomplished_achievements), reverse=True)
             view = AchievementLeaderboardMenu(interaction.user, accounts)
+        elif ranking == '# of Games Played':
+            accounts.sort(key=lambda a: a.num_wins + a.num_loses + a.num_draws, reverse=True)
+            view = GamesPlayedLeaderboardMenu(interaction.user, accounts)
         else:
             accounts.sort(
                 key=lambda a: (a.num_wins / a.num_loses) if a.num_loses != 0 else float(a.num_wins),
