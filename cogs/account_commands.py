@@ -1,3 +1,5 @@
+import io
+
 import discord
 
 from discord import app_commands, Interaction
@@ -7,7 +9,8 @@ import utils
 from utils import SDGException, DiscordClient, Account, Role, Subalignment, Faction, RSFTransformer, ScrollTransformer
 
 import typing
-
+import csv
+import dataclasses
 
 class DeleteConfirm(discord.ui.View):
     def __init__(self, owner: discord.User):
@@ -70,6 +73,19 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
     def __init__(self, client):
         self.client: DiscordClient = client
+
+    @staticmethod
+    def csv_dict(old_dict: dict):
+        for k, v in old_dict.items():
+            if isinstance(v, list):
+                if v:
+                    old_dict[k] = '"' + ','.join([str(i['id']) for i in v]) + '"'
+                else:
+                    old_dict[k] = None
+            if isinstance(v, int) and len(str(v)) > 15:
+                old_dict[k] = f'"{v}"'
+
+        return old_dict
 
     @app_commands.command(name='create')
     @app_commands.describe(member='The member to create the account for, if not specified, it creates one for you')
@@ -242,6 +258,161 @@ class AccountCog(commands.GroupCog, group_name='account'):
             self.client.replace_guild_info(guild_info)
         else:
             pass
+
+    @app_commands.command(name='export')
+    @app_commands.check(utils.admin_check)
+    async def export_accounts(self, interaction: Interaction):
+        """Export accounts as a .csv file. When using a spreadsheet program use "Format quoted field as text"."""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+
+        if not guild_info.accounts:
+            raise SDGException('This server has no accounts!')
+
+        file_buffer = io.StringIO()
+        with file_buffer as csvfile:
+            fields = [f.name for f in dataclasses.fields(Account)]
+            fields = ['username'] + fields
+            csvwriter = csv.DictWriter(csvfile, fields)
+            csvwriter.writeheader()
+
+            for account in guild_info.accounts:
+                try:
+                    user = self.client.get_user(account.id) or await self.client.fetch_user(account.id)
+                    username = user.name
+                except discord.NotFound:
+                    username = 'Unknown User'
+
+                account_dict = dataclasses.asdict(account)
+                account_dict = self.csv_dict(account_dict)
+                account_dict['username'] = username
+                csvwriter.writerow(account_dict)
+
+            file_buffer.seek(0)
+            file = discord.File(file_buffer, 'accounts.csv')
+
+        await interaction.response.send_message(file=file, ephemeral=True)
+
+    @app_commands.command(name='import')
+    @app_commands.describe(csv_file='The csv file of accounts to import')
+    @app_commands.describe(mode='ADD=Add the values to account values, SET=Sets the values to accounts')
+    @app_commands.check(utils.admin_check)
+    async def import_accounts(
+            self,
+            interaction: Interaction,
+            csv_file: discord.Attachment,
+            mode: typing.Literal['SET', 'ADD']
+    ):
+        """Import a csv file of accounts"""
+        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        all_rsf = guild_info.roles + guild_info.subalignments + guild_info.factions
+
+        await interaction.response.defer()
+
+        csv_bytes = await csv_file.read()
+        csv_data = csv_bytes.decode('utf-8')
+        csv_buffer = io.StringIO(csv_data)
+
+        new_accounts = []
+        csvreader = csv.DictReader(csv_buffer, delimiter=',')
+        for row in csvreader:
+            row: dict[str, str]
+
+            for k, v in row.items():
+                val = v.strip('", ')
+                row[k] = val
+
+            account_id = int(row['id'])
+            existing_account = guild_info.get_account(account_id)
+
+            if not existing_account:
+                continue
+
+            num_wins = int(row['num_wins'])
+            num_losses = int(row['num_loses'])
+            num_draws = int(row['num_draws'])
+            blessed_scrolls_list = row['blessed_scrolls'].split(',')
+            cursed_scrolls_list = row['cursed_scrolls'].split(',')
+            achievements_list = row['accomplished_achievements'].split(',')
+
+            blessed_scrolls = []
+            cursed_scrolls = []
+            achievements = []
+
+            for scroll_id in blessed_scrolls_list:
+                if scroll_id:
+                    scroll_id = int(scroll_id)
+                    rsf = [r for r in all_rsf if scroll_id == r.id]
+                    if rsf:
+                        blessed_scrolls.append(rsf[0])
+
+            for scroll_id in cursed_scrolls_list:
+                if scroll_id:
+                    scroll_id = int(scroll_id)
+                    rsf = [r for r in all_rsf if scroll_id == r.id]
+                    if rsf:
+                        cursed_scrolls.append(rsf[0])
+
+            for ach_id in achievements_list:
+                if ach_id:
+                    ach_id = int(ach_id)
+                    ach = [a for a in guild_info.achievements if a.id == ach_id]
+                    if ach:
+                        achievements.append(ach[0])
+
+            if mode == 'SET':
+                new_wins = num_wins
+                new_losses = num_losses
+                new_draws = num_draws
+                new_blessed_scrolls = blessed_scrolls
+                new_cursed_scrolls = cursed_scrolls
+                new_achievements = achievements
+            else:
+                new_wins = num_wins + existing_account.num_wins
+                new_losses = num_losses + existing_account.num_loses
+                new_draws = num_draws + existing_account.num_draws
+
+                new_blessed_scrolls = [s for s in blessed_scrolls if s not in existing_account.blessed_scrolls]
+                new_blessed_scrolls += existing_account.blessed_scrolls
+
+                new_cursed_scrolls = [s for s in cursed_scrolls if s not in existing_account.cursed_scrolls]
+                new_cursed_scrolls += existing_account.cursed_scrolls
+                new_cursed_scrolls = [s for s in new_cursed_scrolls if isinstance(s, Role) and s not in new_blessed_scrolls]
+
+                new_achievements = [a for a in existing_account.accomplished_achievements if a not in achievements]
+                new_achievements += existing_account.accomplished_achievements
+
+            new_account = Account(
+                id=account_id,
+                num_wins=new_wins,
+                num_loses=new_losses,
+                num_draws=new_draws,
+                blessed_scrolls=new_blessed_scrolls,
+                cursed_scrolls=new_cursed_scrolls,
+                accomplished_achievements=new_achievements
+            )
+
+            new_accounts.append(new_account)
+
+        unmodified_accounts = []
+        modified_account_ids = [a.id for a in new_accounts]
+        for account in guild_info.accounts:
+            if account.id not in modified_account_ids:
+                unmodified_accounts.append(account)
+
+        guild_info.accounts = unmodified_accounts + new_accounts
+
+        self.client.replace_guild_info(guild_info)
+
+        for account in new_accounts:
+            await self.client.modify_account_in_db(account, interaction.guild_id)
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Import successful!',
+            description=f'Modified {len(new_accounts)} accounts!'
+        )
+
+        await interaction.followup.send(embed=embed)
 
     @scroll_group.command(name='view')
     @app_commands.describe(member='The member to view scrolls of. You need to be trusted to view other\'s scrolls')
