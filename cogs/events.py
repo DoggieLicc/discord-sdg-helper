@@ -20,7 +20,7 @@ class EventsCog(commands.Cog):
         len_guilds = len(self.client.guilds)
         activity = discord.CustomActivity(f'Handling {len_roles} roles in {len_guilds} servers')
 
-        if activity != self.last_activity:
+        if self.client and activity != self.last_activity:
             await self.client.change_presence(activity=activity)
             self.last_activity = activity
 
