@@ -405,7 +405,11 @@ class AccountCog(commands.GroupCog, group_name='account'):
                 accomplished_achievements=new_achievements
             )
 
-            new_accounts.append(new_account)
+            if new_account != existing_account:
+                new_accounts.append(new_account)
+
+        if not new_accounts:
+            raise SDGException('All account data remained the same!')
 
         unmodified_accounts = []
         modified_account_ids = [a.id for a in new_accounts]
