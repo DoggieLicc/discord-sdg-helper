@@ -88,7 +88,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
             description=f'Created achievement "{name}" successfully!'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name='delete')
     @app_commands.describe(achievement='The achievement to delete')
@@ -118,7 +118,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
             description=f'The achievement "{achievement.name}" has been deleted.'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name='view')
     @app_commands.describe(achievement='The achievement to view')
@@ -338,7 +338,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
             description=f'Modified achievement "{name}" successfully!'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot):
