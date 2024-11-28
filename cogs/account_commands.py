@@ -552,21 +552,24 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @game_group.command(name='add')
     @app_commands.describe(result='The game result to add')
     @app_commands.describe(member='Add a game to this singular member')
-    @app_commands.describe(member_mentions_message_id='Add a game to all players mentioned in this message ID')
+    @app_commands.describe(mentions_message='Add a game to all players mentioned in this message ID')
     async def game_add(
             self,
             interaction: Interaction,
             result: typing.Literal['WIN', 'LOSS', 'DRAW'],
             member: discord.User = None,
-            member_mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
+            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Add a game result to a player or multiple players"""
         guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
 
-        if member and member_mentions_message_id:
+        if member is None and mentions_message is None:
+            raise SDGException('You need to specify either member or mentions_message')
+
+        if member and mentions_message:
             raise SDGException('Can\'t use both members and member_mentions_message_id!')
 
-        members = [member] if member else member_mentions_message_id.mentions
+        members = [member] if member else mentions_message.mentions
         accounts = [guild_info.get_account(m.id) for m in members]
         accounts = [a for a in accounts if a]
 
@@ -598,22 +601,25 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.describe(result='The game result to set')
     @app_commands.describe(amount='The amount to set')
     @app_commands.describe(member='Set the games of this singular member')
-    @app_commands.describe(member_mentions_message_id='Set games to all players mentioned in this message ID')
+    @app_commands.describe(mentions_message='Set games to all players mentioned in this message ID')
     async def game_set(
             self,
             interaction: Interaction,
             result: typing.Literal['WIN', 'LOSS', 'DRAW'],
             amount: int,
             member: discord.User = None,
-            member_mentions_message_id: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
+            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Sets the amount of games to a player or multiple players"""
         guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
 
-        if member and member_mentions_message_id:
+        if member is None and mentions_message is None:
+            raise SDGException('You need to specify either member or mentions_message')
+
+        if member and mentions_message:
             raise SDGException('Can\'t use both members and member_mentions_message_id!')
 
-        members = [member] if member else member_mentions_message_id.mentions
+        members = [member] if member else mentions_message.mentions
         accounts = [guild_info.get_account(m.id) for m in members]
         accounts = [a for a in accounts if a]
 
