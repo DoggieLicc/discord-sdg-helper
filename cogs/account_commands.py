@@ -260,13 +260,27 @@ class AccountCog(commands.GroupCog, group_name='account'):
             pass
 
     @app_commands.command(name='export')
+    @app_commands.describe(mentions_message='If specified, will only export accounts of mentioned players')
     @app_commands.check(utils.admin_check)
-    async def export_accounts(self, interaction: Interaction):
+    async def export_accounts(
+            self,
+            interaction: Interaction,
+            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
+    ):
         """Export accounts as a .csv file. When using a spreadsheet program use "Format quoted field as text"."""
         guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
 
         if not guild_info.accounts:
             raise SDGException('This server has no accounts!')
+
+        valid_accounts = guild_info.accounts
+
+        if mentions_message:
+            mention_ids = [m.id for m in mentions_message.mentions]
+            valid_accounts = [a for a in guild_info.accounts if a.id in mention_ids]
+
+        if not valid_accounts:
+            raise SDGException('No mentioned users have accounts!')
 
         file_buffer = io.StringIO()
         with file_buffer as csvfile:
@@ -275,7 +289,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             csvwriter = csv.DictWriter(csvfile, fields)
             csvwriter.writeheader()
 
-            for account in guild_info.accounts:
+            for account in valid_accounts:
                 try:
                     user = self.client.get_user(account.id) or await self.client.fetch_user(account.id)
                     username = user.name
