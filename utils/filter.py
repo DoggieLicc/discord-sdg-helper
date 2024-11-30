@@ -9,6 +9,12 @@ import utils
 from utils import Role
 
 
+__all__ = [
+    'generate_rolelist_roles',
+    'get_rolelist'
+]
+
+
 @dataclass(slots=True)
 class Filter:
     negated: bool

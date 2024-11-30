@@ -12,6 +12,7 @@ import typing
 import csv
 import dataclasses
 
+
 class DeleteConfirm(discord.ui.View):
     def __init__(self, owner: discord.User):
         super().__init__()
