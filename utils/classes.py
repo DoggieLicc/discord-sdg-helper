@@ -663,11 +663,9 @@ class DiscordClient(Bot):
         self.guild_info.append(guild_info)
 
     def get_guild_info(self, guild_id: int) -> GuildInfo | None:
-        guild_info = [g for g in self.guild_info if g.guild_id == guild_id]
-        if guild_info:
-            return guild_info[0]
-
-        return None
+        for guild_info in self.guild_info:
+            if guild_info.guild_id == guild_id:
+                return guild_info
 
     async def add_item_to_db(self, item: S, table_name: str):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
@@ -907,9 +905,9 @@ class GuildInfo:
 
     def _get_item_by_id(self, attribute: str, id_:  int) -> type[S] | None:
         items = getattr(self, attribute)
-        item = [i for i in items if i.id == id_]
-        if item:
-            return item[0]
+        for item in items:
+            if item.id == id_:
+                return item
 
     def get_role(self, id_:  int) -> Role | None:
         return self._get_item_by_id('roles', id_)
