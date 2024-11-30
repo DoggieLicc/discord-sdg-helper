@@ -6,6 +6,7 @@ from thefuzz import process as thefuzz_process
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
 
+import utils
 from utils.classes import *
 from utils.funcs import get_guild_info
 
@@ -170,7 +171,13 @@ class RSFTransformer(ChoiceTransformer):
         guild_info: GuildInfo = get_guild_info(interaction)
         choice_list = []
         for item in guild_info.roles + guild_info.subalignments + guild_info.factions:
-            choice_list.append(app_commands.Choice(name=item.name, value=str(item.id)))
+            if isinstance(item, utils.Role):
+                rsf_type = 'Role'
+            elif isinstance(item, utils.Subalignment):
+                rsf_type = 'Subalignment'
+            else:
+                rsf_type = 'Faction'
+            choice_list.append(app_commands.Choice(name=f'{item.name} ({rsf_type})', value=str(item.id)))
 
         return choice_list
 
