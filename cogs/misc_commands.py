@@ -308,6 +308,7 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(poll_question, view=view)
 
+    @app_commands.guild_only()
     @app_commands.command(name='listroles')
     @app_commands.describe(faction='List roles part of this faction')
     @app_commands.describe(subalignment='List roles part of this subalignment')
@@ -373,6 +374,7 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
 
+    @app_commands.guild_only()
     @app_commands.command(name='leaderboard')
     @app_commands.describe(ranking='The ranking to view')
     @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
@@ -414,6 +416,7 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
 
+    @app_commands.guild_only()
     @app_commands.command(name='assignroles')
     @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
     @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
