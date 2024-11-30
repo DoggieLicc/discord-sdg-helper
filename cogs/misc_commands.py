@@ -605,7 +605,7 @@ class MiscCog(commands.Cog):
             )
 
         for member in message_mentions:
-            thread = await message.channel.create_thread(
+            thread = await interaction.channel.create_thread(
                 name=f'{member} {thread_name}',
                 auto_archive_duration=10080,
                 invitable=invitable
