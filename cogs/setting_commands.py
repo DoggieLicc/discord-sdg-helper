@@ -9,6 +9,8 @@ from utils import SDGException, DiscordClient
 
 @app_commands.guild_only()
 class SettingCog(commands.GroupCog, group_name='settings'):
+    """Commands to view and modify server settings"""
+
     def __init__(self, client):
         self.client: DiscordClient = client
 

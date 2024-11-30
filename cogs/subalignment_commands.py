@@ -9,6 +9,7 @@ import utils
 
 @app_commands.guild_only()
 class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
+    """Commands to create, view, and modify subalignments"""
     def __init__(self, client):
         self.client: utils.DiscordClient = client
 

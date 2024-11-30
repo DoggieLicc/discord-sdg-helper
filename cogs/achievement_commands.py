@@ -27,6 +27,8 @@ class AchievementMenu(utils.PaginatedMenu):
 
 @app_commands.guild_only()
 class AchievementCog(commands.GroupCog, group_name='achievement'):
+    """Commands to create, view, modify, award, and unaward achievements"""
+
     def __init__(self, client):
         self.client: DiscordClient = client
 

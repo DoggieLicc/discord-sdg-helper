@@ -9,6 +9,8 @@ import utils
 @app_commands.guild_only()
 @app_commands.default_permissions()
 class TrustCog(commands.GroupCog, group_name='trust'):
+    """Commands to add or remove trust access to special commands"""
+
     def __init__(self, client):
         self.client: utils.DiscordClient = client
 

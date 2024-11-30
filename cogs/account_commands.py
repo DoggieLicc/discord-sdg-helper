@@ -68,6 +68,8 @@ class DeleteConfirm(discord.ui.View):
 
 @app_commands.guild_only()
 class AccountCog(commands.GroupCog, group_name='account'):
+    """Commands to create, view, modify, and delete accounts"""
+
     scroll_group = app_commands.Group(name='scroll', description='Scroll commands')
     game_group = app_commands.Group(name='game', description='Game commands')
 

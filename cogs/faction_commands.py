@@ -9,6 +9,8 @@ import utils
 
 @app_commands.guild_only()
 class FactionCog(commands.GroupCog, group_name='faction'):
+    """Commands to create, view, and modify factions"""
+
     def __init__(self, client):
         self.client: utils.DiscordClient = client
 

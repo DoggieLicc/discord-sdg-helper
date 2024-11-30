@@ -9,6 +9,7 @@ import utils
 
 @app_commands.guild_only()
 class InfotagCog(commands.GroupCog, group_name='infotag'):
+    """Commands to create, view, and modify infotags"""
     def __init__(self, client):
         self.client: utils.DiscordClient = client
 

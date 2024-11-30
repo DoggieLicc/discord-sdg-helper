@@ -12,6 +12,8 @@ import utils
 
 @app_commands.guild_only()
 class RandomCog(commands.GroupCog, group_name='random'):
+    """Commands that generate randomized results"""
+
     def __init__(self, client):
         self.client: utils.DiscordClient = client
 
