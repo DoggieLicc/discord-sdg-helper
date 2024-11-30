@@ -69,7 +69,7 @@ class ErrorCog(commands.Cog):
                 owner_embed.add_field(
                     name='Extra Info:',
                     value=f'Guild: {interaction.guild}: {getattr(interaction.guild, "id", "None")}\n'
-                          f'Channel: {interaction.channel.mention}:{interaction.channel.id}', inline=False
+                          f'Channel: {interaction.channel}:{interaction.channel.id}', inline=False
                 )
 
                 await owner.send(embed=owner_embed, files=[file])
