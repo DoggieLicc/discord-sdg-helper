@@ -27,7 +27,8 @@ class MessageTransformer(app_commands.Transformer):
     async def transform(self, interaction: Interaction, value: str, /) -> Any:
         try:
             if value.isnumeric():
-                message = await interaction.channel.fetch_message(int(value))
+                state_msg = interaction.client._connection._get_message(int(value))
+                message = state_msg or await interaction.channel.fetch_message(int(value))
                 return message
             else:
                 link_regex = re.compile(
@@ -38,8 +39,13 @@ class MessageTransformer(app_commands.Transformer):
 
                 match = re.search(link_regex, value)
                 if match:
-                    channel_id = match.group('channel_id')
-                    message_id = match.group('message_id')
+                    channel_id = int(match.group('channel_id'))
+                    message_id = int(match.group('message_id'))
+
+                    state_msg = interaction.client._connection._get_message(message_id)
+
+                    if state_msg:
+                        return state_msg
 
                     channel = (interaction.guild.get_channel_or_thread(channel_id) or
                                await interaction.guild.fetch_channel(channel_id))
