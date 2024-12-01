@@ -2,12 +2,12 @@ import asyncio
 import io
 import textwrap
 import traceback
-import utils
-import discord
+from contextlib import redirect_stdout
 
+import discord
 from discord.ext import commands
 
-from contextlib import redirect_stdout
+import utils
 
 
 def cleanup_code(content):
@@ -16,7 +16,7 @@ def cleanup_code(content):
     return content.strip('` \n')
 
 
-def format_error(author: discord.User, error: Exception) -> discord.Embed:
+def format_error(author: discord.User, error: BaseException) -> discord.Embed:
     error_lines = traceback.format_exception(type(error), error, error.__traceback__)
     embed = utils.create_embed(
         author,
@@ -28,11 +28,12 @@ def format_error(author: discord.User, error: Exception) -> discord.Embed:
     return embed
 
 
-class Dev(commands.Cog, command_attrs=dict(hidden=True)):
+class Dev(commands.Cog, command_attrs={'hidden': True}):
     def __init__(self, bot):
         self.bot: utils.DiscordClient = bot
 
     async def cog_check(self, ctx: commands.Context):
+        # pylint: disable=invalid-overridden-method
         if not await self.bot.is_owner(ctx.author):
             raise commands.NotOwner()
 
@@ -43,7 +44,7 @@ class Dev(commands.Cog, command_attrs=dict(hidden=True)):
         for cog in cogs:
             try:
                 await self.bot.load_extension(f'cogs.{cog}')
-            except Exception as e:
+            except discord.DiscordException as e:
                 embed = format_error(ctx.author, e)
                 return await ctx.send(embed=embed)
 
@@ -61,7 +62,7 @@ class Dev(commands.Cog, command_attrs=dict(hidden=True)):
         for cog in cogs:
             try:
                 await self.bot.unload_extension(f'cogs.{cog}')
-            except Exception as e:
+            except discord.DiscordException as e:
                 embed = format_error(ctx.author, e)
                 return await ctx.send(embed=embed)
 
@@ -136,6 +137,7 @@ class Dev(commands.Cog, command_attrs=dict(hidden=True)):
 
     @commands.command()
     async def eval(self, ctx: commands.Context, *, code):
+        # pylint: disable=broad-exception-caught,exec-used
 
         env = {
             'bot': self.bot,
@@ -153,7 +155,7 @@ class Dev(commands.Cog, command_attrs=dict(hidden=True)):
 
         try:
             exec(to_compile, env)
-        except Exception as e:
+        except BaseException as e:
             embed = format_error(ctx.author, e)
             return await ctx.send(embed=embed)
 
@@ -163,60 +165,54 @@ class Dev(commands.Cog, command_attrs=dict(hidden=True)):
             with redirect_stdout(stdout):
                 ret = await func()
 
-        except Exception as e:
+        except BaseException as e:
             embed = format_error(ctx.author, e)
             return await ctx.send(embed=embed)
 
+        value = stdout.getvalue()
+        if ret is None:
+            if value:
+                if len(value) < 4000:
+                    embed = utils.create_embed(
+                        ctx.author,
+                        title="Exec result:",
+                        description=f'```py\n{value}\n```'
+                    )
+
+                    return await ctx.send(embed=embed)
+
+                return await ctx.send(
+                    f"Exec result too long ({len(value)} chars.):",
+                    file=utils.str_to_file(value)
+                )
+
+            embed = utils.create_embed(ctx.author, title="Eval code executed!")
+            return await ctx.send(embed=embed)
+
+        if isinstance(ret, discord.Embed):
+            return await ctx.send(embed=ret)
+
+        if isinstance(ret, discord.File):
+            return await ctx.send(file=ret)
+
+        if isinstance(ret, discord.Asset):
+            embed = utils.create_embed(ctx.author, image=ret)
+            return await ctx.send(embed=embed)
+
+        ret = repr(ret)
+
+        if len(ret) < 4000:
+            embed = utils.create_embed(
+                ctx.author,
+                title="Exec result:",
+                description=f'```py\n{ret}\n```'
+            )
+
         else:
-            value = stdout.getvalue()
-            if ret is None:
-                if value:
-                    if len(value) < 4000:
-                        embed = utils.create_embed(
-                            ctx.author,
-                            title="Exec result:",
-                            description=f'```py\n{value}\n```'
-                        )
+            return await ctx.send(f"Exec result too long ({len(ret)} chars.):",
+                                  file=utils.str_to_file(ret))
 
-                        await ctx.send(embed=embed)
-                    else:
-                        await ctx.send(
-                            f"Exec result too long ({len(value)} chars.):",
-                            file=utils.str_to_file(value)
-                        )
-
-                    return
-
-                else:
-                    embed = utils.create_embed(ctx.author, title="Eval code executed!")
-                    return await ctx.send(embed=embed)
-
-            else:
-                if isinstance(ret, discord.Embed):
-                    return await ctx.send(embed=ret)
-
-                if isinstance(ret, discord.File):
-                    return await ctx.send(file=ret)
-
-                if isinstance(ret, discord.Asset):
-                    embed = utils.create_embed(ctx.author, image=ret)
-                    return await ctx.send(embed=embed)
-
-                else:
-                    ret = repr(ret)
-
-                    if len(ret) < 4000:
-                        embed = utils.create_embed(
-                            ctx.author,
-                            title="Exec result:",
-                            description=f'```py\n{ret}\n```'
-                        )
-
-                    else:
-                        return await ctx.send(f"Exec result too long ({len(ret)} chars.):",
-                                              file=utils.str_to_file(ret))
-
-                    return await ctx.send(embed=embed)
+        return await ctx.send(embed=embed)
 
     @commands.command(aliases=['gitpull'])
     async def pull(self, ctx: commands.Context):

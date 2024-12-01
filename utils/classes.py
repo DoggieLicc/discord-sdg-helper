@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import copy
-import discord
-import asqlite
-
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+import discord
 from discord.ext.commands import Bot
 from discord.state import ConnectionState
 
+import asqlite
 from utils.db_helper import *
 
 __all__ = [
@@ -241,8 +240,9 @@ class CustomConnectionState(ConnectionState):
 class DiscordClient(Bot):
     def __init__(self, test_guild, do_first_sync: bool, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.TEST_GUILD = test_guild
-        self.guild_info: list[GuildInfo] = list()
+        self.test_guild = test_guild
+        self.guild_info: list[GuildInfo] = []
+        self.guild_task = None
         self.db_helper = DatabaseHelper(
             [
                 FactionTable,
@@ -259,13 +259,18 @@ class DiscordClient(Bot):
         )
         self.db_loaded = False
         self.first_sync = False
-        self.populated_forum_ids: list[int] = list()
+        self.populated_forum_ids: list[int] = []
         self.owner = None
-        self.cogs_list: list[str] = list()
+        self.cogs_list: list[str] = []
         self.do_first_sync = do_first_sync
 
     def _get_state(self, **options: Any):
-        return CustomConnectionState(dispatch=self.dispatch, handlers=self._handlers, hooks=self._hooks, http=self.http, **options)
+        return CustomConnectionState(
+            dispatch=self.dispatch,
+            handlers=self._handlers,
+            hooks=self._hooks,
+            http=self.http, **options
+        )
 
     async def get_owner(self) -> discord.User:
         if not self.owner:
@@ -396,7 +401,7 @@ class DiscordClient(Bot):
 
         return roles
 
-    def get_subalignment_faction(self, subalignment: Subalignment) -> Faction:
+    def get_subalignment_faction(self, subalignment: Subalignment) -> Faction | None:
         for channel in self.get_all_channels():
             if isinstance(channel, discord.ForumChannel):
                 for tag in channel.available_tags:
@@ -407,9 +412,11 @@ class DiscordClient(Bot):
 
                         return faction
 
+        return None
+
     async def add_archived_threads(self, forum_channel: discord.ForumChannel, force: bool = False):
         if forum_channel.id in self.populated_forum_ids and not force:
-            return
+            return None
 
         async for thread in forum_channel.archived_threads(limit=None):
             # Add to dpy's internal cache lol
@@ -576,9 +583,9 @@ class DiscordClient(Bot):
         self.guild_task = self.loop.create_task(self.load_guild_info())
 
         if self.do_first_sync:
-            if self.TEST_GUILD:
-                self.tree.copy_global_to(guild=self.TEST_GUILD)
-                await self.tree.sync(guild=self.TEST_GUILD)
+            if self.test_guild:
+                self.tree.copy_global_to(guild=self.test_guild)
+                await self.tree.sync(guild=self.test_guild)
 
             await self.tree.sync()
             print('Synced commands automatically (DO_FIRST_SYNC)')
@@ -634,12 +641,12 @@ class DiscordClient(Bot):
                 guild_id=guild.id,
                 factions=factions,
                 subalignments=subalignments,
-                roles=list(),
+                roles=[],
                 info_categories=info_categories,
-                info_tags=list(),
+                info_tags=[],
                 trusted_ids=trusted_ids,
-                achievements=list(),
-                accounts=list(),
+                achievements=[],
+                accounts=[],
                 guild_settings=guild_settings
             )
 
@@ -654,7 +661,7 @@ class DiscordClient(Bot):
 
             self.replace_guild_info(guild_info)
 
-    def replace_guild_info(self, guild_info: GuildInfo):
+    def replace_guild_info(self, guild_info: GuildInfo) -> None:
         try:
             self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
         except ValueError:
@@ -666,6 +673,8 @@ class DiscordClient(Bot):
         for guild_info in self.guild_info:
             if guild_info.guild_id == guild_id:
                 return guild_info
+
+        return None
 
     async def add_item_to_db(self, item: S, table_name: str):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
@@ -700,7 +709,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO trusted_ids VALUES (?, ?)',
+                    'INSERT OR IGNORE INTO trusted_ids VALUES (?, ?)',
                     (
                         trusted_id,
                         guild_id
@@ -713,7 +722,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM trusted_ids WHERE id = (?) AND guild_id = (?)',
+                    'DELETE FROM trusted_ids WHERE id = (?) AND guild_id = (?)',
                     (
                         trusted_id,
                         guild_id
@@ -726,7 +735,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO achievements VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR IGNORE INTO achievements VALUES (?, ?, ?, ?, ?, ?, ?)',
                     (
                         achievement.id,
                         guild_id,
@@ -744,7 +753,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
+                    'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
                     (
                         achievement.id,
                         guild_id
@@ -761,7 +770,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR IGNORE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     (
                         account.id,
                         guild_id,
@@ -780,7 +789,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM accounts WHERE user_id = (?) AND guild_id = (?)',
+                    'DELETE FROM accounts WHERE user_id = (?) AND guild_id = (?)',
                     (
                         account.id,
                         guild_id
@@ -789,15 +798,15 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def modify_account_in_db(self, account: Account, guild_id: int):
+    async def modify_account_in_db(self, account: Account, guild_id: int) -> None:
         await self.delete_account_from_db(account, guild_id=guild_id)
         await self.add_account_to_db(account, guild_id=guild_id)
 
-    async def add_settings_to_db(self, settings: GuildSettings, guild_id: int):
+    async def add_settings_to_db(self, settings: GuildSettings, guild_id: int) -> None:
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO guild_settings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR IGNORE INTO guild_settings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     (
                         guild_id,
                         settings.max_scrolls,
@@ -813,11 +822,11 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def delete_settings_from_db(self, settings: GuildSettings, guild_id: int):
+    async def delete_settings_from_db(self, guild_id: int):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM guild_settings WHERE guild_id = (?)',
+                    'DELETE FROM guild_settings WHERE guild_id = (?)',
                     (
                         guild_id
                     )
@@ -826,7 +835,7 @@ class DiscordClient(Bot):
             await conn.commit()
 
     async def modify_settings_in_db(self, settings: GuildSettings, guild_id: int):
-        await self.delete_settings_from_db(settings, guild_id)
+        await self.delete_settings_from_db(guild_id)
         await self.add_settings_to_db(settings, guild_id)
 
 
@@ -908,6 +917,8 @@ class GuildInfo:
         for item in items:
             if item.id == id_:
                 return item
+
+        return None
 
     def get_role(self, id_:  int) -> Role | None:
         return self._get_item_by_id('roles', id_)

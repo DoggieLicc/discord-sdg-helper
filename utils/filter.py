@@ -4,9 +4,9 @@ import copy
 import random
 
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 
-import utils
-from utils import Role
+from utils.classes import Role, SDGException
 
 
 __all__ = [
@@ -16,10 +16,11 @@ __all__ = [
 
 
 @dataclass(slots=True)
-class Filter:
+class Filter(ABC):
     negated: bool
     filter_str: str
 
+    @abstractmethod
     def filter_roles(self, in_roles: list[Role]) -> list[Role]:
         ...
 
@@ -94,7 +95,8 @@ class UnionFilter(Filter):
 
 
 @dataclass(slots=True)
-class Modifier:
+class Modifier(ABC):
+    @abstractmethod
     def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
         ...
 
@@ -157,11 +159,12 @@ class IndividualityModifier(Modifier):
 
 
 @dataclass(slots=True)
-class WeightChanger:
+class WeightChanger(ABC):
     roles: list[Role]
     argument: int
     limit: int | None
 
+    @abstractmethod
     def get_weight(self, prev_weight: int) -> int:
         ...
 
@@ -236,14 +239,13 @@ def get_str_filters(slot_str: str) -> Slot:
         slot_str = slot_str[1:]
 
     for char in slot_str:
-
-        if char == r'\\' or char == r'`':
+        if char in [r'\\', r'`']:
             continue
 
         if char == ' ' and not filter_chars:
             continue
 
-        if char in filter_dict.keys():
+        if char in filter_dict:
             if filter_chars and not next_filter:
                 next_filter = TagFilter
 
@@ -308,8 +310,8 @@ def get_str_filters(slot_str: str) -> Slot:
 
 
 def process_filters(in_roles: list[Role], filters: list[Filter]) -> list[Role]:
-    for filter in filters:
-        in_roles = filter.filter_roles(in_roles)
+    for filter_ in filters:
+        in_roles = filter_.filter_roles(in_roles)
 
     return in_roles
 
@@ -327,7 +329,7 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
             roles = all_roles
 
         if not roles:
-            raise utils.SDGException(f'No roles for {roles_str}')
+            raise SDGException(f'No roles for {roles_str}')
 
         return IndividualityModifier(roles)
 
@@ -338,7 +340,7 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
         roles = process_filters(all_roles, filters)
 
         if not roles:
-            raise utils.SDGException(f'No roles for {roles_str}')
+            raise SDGException(f'No roles for {roles_str}')
 
         return LimitModifier(roles, limit)
 
@@ -348,11 +350,11 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
         roles = process_filters(all_roles, filters)
 
         if not roles:
-            raise utils.SDGException(f'No roles for {roles_str}')
+            raise SDGException(f'No roles for {roles_str}')
 
         return MutualExclusiveModifier(roles)
 
-    raise Exception('Invalid modifier')
+    raise SDGException(f'Invalid modifier: {modifier_str}')
 
 
 def get_weight_chnager(in_str, all_roles: list[Role]) -> WeightChanger:
@@ -361,28 +363,30 @@ def get_weight_chnager(in_str, all_roles: list[Role]) -> WeightChanger:
     symbol = parameter[0]
     number = int(parameter[1:])
     limit = int(arguments[2].strip()) if len(arguments) >= 3 else None
-    
+
     roles_str = arguments[0].lower().strip()
     filters = get_str_filters(roles_str).filters
     roles = process_filters(all_roles, filters)
 
     if not roles:
-        raise utils.SDGException(f'No roles for {roles_str} in ={in_str}')
-    
+        raise SDGException(f'No roles for {roles_str} in ={in_str}')
+
     if symbol.isnumeric():
         return WeightSet(roles, int(parameter), limit)
-    
+
     if symbol == '+':
         return WeightAdder(roles, number, limit)
-    
+
     if symbol == '-':
         return WeightSubtractor(roles, number, limit)
-    
+
     if symbol in ['*', 'x']:
         return WeightMultiplier(roles, number, limit)
-    
+
     if symbol == '/':
         return WeightDivider(roles, number, limit)
+
+    raise SDGException(f'Invalid weight changer: {in_str}')
 
 
 def get_role_weight(role: Role, weight_changers: list[WeightChanger]) -> int:
@@ -393,7 +397,7 @@ def get_role_weight(role: Role, weight_changers: list[WeightChanger]) -> int:
         weight = changer.get_weight(weight)
 
     if weight <= 0:
-        raise utils.SDGException(f'Weight of {role.name} was resolved to {weight}, under or equal to 0')
+        raise SDGException(f'Weight of {role.name} was resolved to {weight}, under or equal to 0')
 
     return weight
 
@@ -457,7 +461,7 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
             valid_roles = modifier.modify_valid_roles(valid_roles, roles)
 
         if not valid_roles:
-            raise utils.SDGException(f'No valid roles for {slot}')
+            raise SDGException(f'No valid roles for {slot}')
 
         if not rolelist.weight_changers:
             roles.append(random.choice(valid_roles))
@@ -472,4 +476,3 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
             roles.append(role)
 
     return roles
-

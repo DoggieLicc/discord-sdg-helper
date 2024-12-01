@@ -81,18 +81,20 @@ class EventsCog(commands.Cog):
             accounts_creatable=True
         )
 
-        self.client.guild_info.append(GuildInfo(
-            guild.id,
-            list(),
-            list(),
-            list(),
-            list(),
-            list(),
-            list(),
-            list(),
-            list(),
-            default_settings
-        ))
+        self.client.guild_info.append(
+            GuildInfo(
+                guild.id,
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                default_settings
+            )
+        )
 
         await self.client.add_settings_to_db(default_settings, guild.id)
 

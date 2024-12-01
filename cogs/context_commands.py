@@ -1,11 +1,11 @@
-import discord
+import re
 
+import discord
 from discord import app_commands
 from discord.ext import commands
-from utils import SDGException, generate_rolelist_roles
 
 import utils
-import re
+from utils import SDGException, generate_rolelist_roles
 
 
 class ContextMenuCog(commands.Cog):
@@ -31,7 +31,8 @@ class ContextMenuCog(commands.Cog):
 
         while True:
             if message.author == self.client.user and message.reference:
-                message = message.reference.cached_message or message.reference.resolved or await interaction.channel.fetch_message(message.reference.message_id)
+                cached_message = message.reference.cached_message or message.reference.resolved
+                message = cached_message or await interaction.channel.fetch_message(message.reference.message_id)
             else:
                 break
 

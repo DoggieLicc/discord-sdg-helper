@@ -40,36 +40,15 @@ class RandomCog(commands.GroupCog, group_name='random'):
     ):
         """Get random roles!"""
         guild_info = utils.get_guild_info(interaction)
-        split_include_tags = include_tags.split(',')
-        split_exclude_tags = exclude_tags.split(',')
 
-        valid_roles = []
-        for role in guild_info.roles:
-            if faction and role.faction.id != faction.id:
-                continue
-
-            if subalignment and role.subalignment.id != subalignment.id:
-                continue
-
-            role_thread = interaction.guild.get_channel_or_thread(role.id)
-            role_thread_tags = [t.name.lower().strip() for t in role_thread.applied_tags]
-            has_included_tag = not bool(include_tags)
-            has_excluded_tag = False
-
-            for exclude_tag in split_exclude_tags:
-                normalized_e_tag = exclude_tag.lower().strip()
-                if normalized_e_tag in role_thread_tags:
-                    has_excluded_tag = True
-
-            for include_tag in split_include_tags:
-                normalized_i_tag = include_tag.lower().strip()
-                if normalized_i_tag in role_thread_tags:
-                    has_included_tag = True
-
-            if has_excluded_tag or not has_included_tag:
-                continue
-
-            valid_roles.append(role)
+        valid_roles = utils.get_valid_roles(
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            guild_info=guild_info,
+            faction=faction,
+            subalignment=subalignment,
+            guild=interaction.guild
+        )
 
         len_valid_roles = len(valid_roles)
         chosen_roles = []

@@ -145,7 +145,7 @@ class FactionCog(commands.GroupCog, group_name='faction'):
 
         failed_str = '\n'.join(r.mention for r in failed_roles)
         if failed_str:
-            failed_str = f'\n\nThreads unable to be synced due to lack of subalignment tag:\n' + failed_str
+            failed_str = '\n\nThreads unable to be synced due to lack of subalignment tag:\n' + failed_str
 
         embed = utils.create_embed(
             interaction.user,

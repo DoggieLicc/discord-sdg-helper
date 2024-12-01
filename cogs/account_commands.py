@@ -1,4 +1,7 @@
 import io
+import csv
+import typing
+import dataclasses
 
 import discord
 
@@ -7,10 +10,6 @@ from discord.ext import commands
 
 import utils
 from utils import SDGException, DiscordClient, Account, Role, Subalignment, Faction, RSFTransformer, ScrollTransformer
-
-import typing
-import csv
-import dataclasses
 
 
 class DeleteConfirm(discord.ui.View):
@@ -21,7 +20,7 @@ class DeleteConfirm(discord.ui.View):
         self.message = None
 
     @discord.ui.button(label='Delete Account', style=discord.ButtonStyle.danger)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button):
         embed = utils.create_embed(
             interaction.user,
             title='Account Deleted',
@@ -32,7 +31,7 @@ class DeleteConfirm(discord.ui.View):
         await self.on_timeout()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.green)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def cancel(self, interaction: discord.Interaction, _: discord.ui.Button):
         embed = utils.create_embed(
             interaction.user,
             title='Deletion cancelled',
@@ -108,7 +107,11 @@ class AccountCog(commands.GroupCog, group_name='account'):
         if guild_info.get_account(member.id):
             raise SDGException(f'Member {member.mention} already has an account!')
 
-        if member == interaction.user and not await utils.mod_check(interaction) and not guild_info.guild_settings.accounts_creatable:
+        if (
+                member == interaction.user and
+                not await utils.mod_check(interaction) and
+                not guild_info.guild_settings.accounts_creatable
+        ):
             raise SDGException('Accounts are not currently creatable by normal users.')
 
         account = Account(
@@ -177,7 +180,9 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
     @app_commands.command(name='view')
     @app_commands.describe(member='The member to view the account of. By default this will be your account')
-    @app_commands.describe(ephemeral='Whether to only show the response to you. Scroll information is shown if True. Defaults to False')
+    @app_commands.describe(
+        ephemeral='Whether to only show the response to you. Scroll information is shown if True. Defaults to False'
+    )
     async def view_account(
             self,
             interaction: Interaction,
@@ -393,7 +398,8 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
                 new_cursed_scrolls = [s for s in cursed_scrolls if s not in existing_account.cursed_scrolls]
                 new_cursed_scrolls += existing_account.cursed_scrolls
-                new_cursed_scrolls = [s for s in new_cursed_scrolls if isinstance(s, Role) and s not in new_blessed_scrolls]
+                new_cursed_scrolls = [s for s in new_cursed_scrolls if isinstance(s, Role) and
+                                      s not in new_blessed_scrolls]
 
                 new_achievements = [a for a in existing_account.accomplished_achievements if a not in achievements]
                 new_achievements += existing_account.accomplished_achievements
@@ -493,16 +499,16 @@ class AccountCog(commands.GroupCog, group_name='account'):
             raise SDGException(f'The scroll "{role_subalignment_faction.name}" is already equipped in cursed scrolls')
 
         if not settings.roles_are_scrollable and isinstance(role_subalignment_faction, Role):
-            raise SDGException(f'Role scrolling is disabled in this server')
+            raise SDGException('Role scrolling is disabled in this server')
 
         if not settings.subalignments_are_scrollable and isinstance(role_subalignment_faction, Subalignment):
-            raise SDGException(f'Subalignment scrolling is disabled in this server')
+            raise SDGException('Subalignment scrolling is disabled in this server')
 
         if not settings.factions_are_scrollable and isinstance(role_subalignment_faction, Faction):
-            raise SDGException(f'Faction scrolling is disabled in this server')
+            raise SDGException('Faction scrolling is disabled in this server')
 
         if scroll_type == 'Cursed' and not isinstance(role_subalignment_faction, Role):
-            raise SDGException(f'Can only cursed scroll for roles')
+            raise SDGException('Can only cursed scroll for roles')
 
         if scroll_type == 'Blessed':
             if len(account.blessed_scrolls) + 1 > settings.max_scrolls:

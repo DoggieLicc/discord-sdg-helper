@@ -1,13 +1,13 @@
 from typing import Any
+from collections.abc import Iterable
+from collections import Counter
 
 import discord
 from discord import Interaction
 from discord.ui import View, Button, Item
 from discord.ext.commands import Paginator
-from collections.abc import Iterable
-from collections import Counter
 
-from utils.funcs import *
+from utils.funcs import create_embed
 
 
 __all__ = [
@@ -48,20 +48,19 @@ class PaginatedMenu(View):
         await interaction.edit_original_response(view=self, **contents)
 
     @discord.ui.button(emoji='\U000023EA', style=discord.ButtonStyle.blurple)
-    async def far_left(self, interaction: discord.Interaction, button: Button):
+    async def far_left(self, interaction: discord.Interaction, _: Button):
         self.current_page = 1
         await self.update_page(interaction)
 
     @discord.ui.button(emoji='\U000025C0', style=discord.ButtonStyle.blurple)
-    async def left(self, interaction: discord.Interaction, button: Button):
+    async def left(self, interaction: discord.Interaction, _: Button):
         self.current_page -= 1
-        if self.current_page < 1:
-            self.current_page = 1
+        self.current_page = max(self.current_page, 1)
 
         await self.update_page(interaction)
 
     @discord.ui.button(emoji='\U000023F9', style=discord.ButtonStyle.red)
-    async def stop(self, interaction: discord.Interaction, button: Button):
+    async def stop_button(self, interaction: discord.Interaction, _: Button):
         children = self.children
         for child in children:
             child.disabled = True
@@ -70,15 +69,14 @@ class PaginatedMenu(View):
         await interaction.edit_original_response(view=self)
 
     @discord.ui.button(emoji='\U000025B6', style=discord.ButtonStyle.blurple)
-    async def right(self, interaction: discord.Interaction, button: Button):
+    async def right(self, interaction: discord.Interaction, _: Button):
         self.current_page += 1
-        if self.current_page > self.max_page:
-            self.current_page = self.max_page
+        self.current_page = min(self.current_page, self.max_page)
 
         await self.update_page(interaction)
 
     @discord.ui.button(emoji='\U000023E9', style=discord.ButtonStyle.blurple)
-    async def far_right(self, interaction: discord.Interaction, button: Button):
+    async def far_right(self, interaction: discord.Interaction, _: Button):
         self.current_page = self.max_page
         await self.update_page(interaction)
 
@@ -129,11 +127,11 @@ class PollSelect(discord.ui.Select):
             for role in self.excluded_roles:
                 if interaction.user in role.members:
                     await interaction.response.send_message('You are in the excluded roles list!', ephemeral=True)
-                    return
+                    return None
 
         if not valid_user:
             await interaction.response.send_message('You aren\'t in the included roles list', ephemeral=True)
-            return
+            return None
 
         await self.thread.send(f'{interaction.user} selected {self.values[0]}')
 

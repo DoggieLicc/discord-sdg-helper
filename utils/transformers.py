@@ -1,14 +1,13 @@
 import re
-import discord
-
 from typing import Any
-from thefuzz import process as thefuzz_process
+from abc import abstractmethod
+
+import discord
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
+from thefuzz import process as thefuzz_process
 
-import utils
 from utils.classes import *
-from utils.funcs import get_guild_info
 
 __all__ = [
     'MessageTransformer',
@@ -25,45 +24,45 @@ __all__ = [
 
 
 class MessageTransformer(app_commands.Transformer):
+    # pylint: disable=abstract-method
     async def transform(self, interaction: Interaction, value: str, /) -> Any:
-        try:
-            if value.isnumeric():
-                state_msg = interaction.client._connection._get_message(int(value))
-                message = state_msg or await interaction.channel.fetch_message(int(value))
-                return message
-            else:
-                link_regex = re.compile(
-                    r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
-                    r"/channels/[0-9]{15,19}/(?P<channel_id>"
-                    r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
-                )
+        if value.isnumeric():
+            state_msg = interaction.client._connection._get_message(int(value))
+            message = state_msg or await interaction.channel.fetch_message(int(value))
+            return message
 
-                match = re.search(link_regex, value)
-                if match:
-                    channel_id = int(match.group('channel_id'))
-                    message_id = int(match.group('message_id'))
+        link_regex = re.compile(
+            r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
+            r"/channels/[0-9]{15,19}/(?P<channel_id>"
+            r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
+        )
 
-                    state_msg = interaction.client._connection._get_message(message_id)
+        match = re.search(link_regex, value)
+        if match:
+            channel_id = int(match.group('channel_id'))
+            message_id = int(match.group('message_id'))
 
-                    if state_msg:
-                        return state_msg
+            state_msg = interaction.client._connection._get_message(message_id)
 
-                    channel = (interaction.guild.get_channel_or_thread(channel_id) or
-                               await interaction.guild.fetch_channel(channel_id))
+            if state_msg:
+                return state_msg
 
-                    message = await channel.fetch_message(message_id)
-                    return message
-        except discord.DiscordException:
-            raise SDGException('Invalid message ID! Message must be in the same channel as this one')
+            channel = (interaction.guild.get_channel_or_thread(channel_id) or
+                       await interaction.guild.fetch_channel(channel_id))
+
+            message = await channel.fetch_message(message_id)
+            return message
 
 
 class ChoiceTransformer(app_commands.Transformer):
     async def transform(self, interaction: Interaction, value: Any, /) -> Any:
         return self.get_value(interaction, value)
 
+    @abstractmethod
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
         ...
 
+    @abstractmethod
     def get_value(self, interaction: Interaction, value: Any) -> Any:
         ...
 
@@ -83,7 +82,7 @@ class ChoiceTransformer(app_commands.Transformer):
 
 class FactionTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         choice_list = []
         for faction in guild_info.factions:
             choice_list.append(app_commands.Choice(name=faction.name, value=str(faction.id)))
@@ -91,14 +90,14 @@ class FactionTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> Faction:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         faction = guild_info.get_faction(int(value))
         return faction
 
 
 class SubalignmentTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         choice_list = []
         for subalignment in guild_info.subalignments:
             choice_list.append(app_commands.Choice(name=subalignment.name, value=str(subalignment.id)))
@@ -106,14 +105,14 @@ class SubalignmentTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> Subalignment:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         subalignment = guild_info.get_subalignment(int(value))
         return subalignment
 
 
 class InfoCategoryTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         choice_list = []
         for information_category in guild_info.info_categories:
             choice_list.append(app_commands.Choice(name=information_category.name, value=str(information_category.id)))
@@ -121,14 +120,14 @@ class InfoCategoryTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> InfoCategory:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         info_category = guild_info.get_info_category(int(value))
         return info_category
 
 
 class InfoTagTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
 
         info_cat_id = interaction.data['options'][0]['options'][0]['value']
 
@@ -145,7 +144,7 @@ class InfoTagTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> InfoTag:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         info_tag = guild_info.get_info_tag(int(value))
 
         return info_tag
@@ -153,7 +152,7 @@ class InfoTagTransformer(ChoiceTransformer):
 
 class RoleTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         choice_list = []
         for role in guild_info.roles:
             choice_list.append(app_commands.Choice(name=role.name, value=str(role.id)))
@@ -161,19 +160,19 @@ class RoleTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> Role:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         role = guild_info.get_role(int(value))
         return role
 
 
 class RSFTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         choice_list = []
         for item in guild_info.roles + guild_info.subalignments + guild_info.factions:
-            if isinstance(item, utils.Role):
+            if isinstance(item, Role):
                 rsf_type = 'Role'
-            elif isinstance(item, utils.Subalignment):
+            elif isinstance(item, Subalignment):
                 rsf_type = 'Subalignment'
             else:
                 rsf_type = 'Faction'
@@ -182,7 +181,7 @@ class RSFTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> Role | Subalignment | Faction:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         role = guild_info.get_role(int(value))
         subalignment = guild_info.get_subalignment(int(value))
         faction = guild_info.get_faction(int(value))
@@ -191,7 +190,7 @@ class RSFTransformer(ChoiceTransformer):
 
 class ScrollTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         account = guild_info.get_account(interaction.user.id)
         if not account:
             return [app_commands.Choice(name='You don\'t have an account!', value=0)]
@@ -211,7 +210,7 @@ class ScrollTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> Role | Subalignment | Faction:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         account = guild_info.get_account(interaction.user.id)
         if not account:
             raise SDGException('You don\'t have an account!')
@@ -227,7 +226,7 @@ class ScrollTransformer(ChoiceTransformer):
 
 class ForumTagTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         faction_id = interaction.data['options'][0]['options'][0]['value']
 
         if not faction_id or not faction_id.isnumeric():
@@ -253,7 +252,7 @@ class ForumTagTransformer(ChoiceTransformer):
 
 class AchievementTransformer(ChoiceTransformer):
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         choice_list = []
         for achievement in guild_info.achievements:
             choice_list.append(app_commands.Choice(name=achievement.name, value=str(achievement.id)))
@@ -261,6 +260,6 @@ class AchievementTransformer(ChoiceTransformer):
         return choice_list
 
     def get_value(self, interaction: Interaction, value: Any) -> Achievement:
-        guild_info: GuildInfo = get_guild_info(interaction)
+        guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         achievement = guild_info.get_achievement(int(value))
         return achievement

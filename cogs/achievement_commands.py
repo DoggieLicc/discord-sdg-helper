@@ -7,9 +7,6 @@ import utils
 
 
 class AchievementMenu(utils.PaginatedMenu):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def format_line(self, item: Achievement) -> str:
         associated_type = item.role or item.subalignment or item.faction
         associated_type_str = associated_type.name if associated_type else 'General'
