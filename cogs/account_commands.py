@@ -94,7 +94,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     async def create_account(self, interaction: Interaction, member: discord.Member | None = None):
         """Create an account for either yourself or another member"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if member and not await utils.mod_check(interaction):
             raise SDGException('You aren\'t allowed to create accounts for other members.')
@@ -141,7 +141,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.check(utils.admin_check)
     async def mass_create_accounts(self, interaction: Interaction):
         """Create accounts for ALL server members"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         await interaction.response.defer()
 
@@ -192,7 +192,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
         """View account info"""
 
         member = member or interaction.user
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         account = guild_info.get_account(member.id)
 
@@ -236,7 +236,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.check(utils.admin_check)
     async def delete_account(self, interaction: Interaction, member: discord.User):
         """Delete an user's account. This action is not reversible!"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = guild_info.get_account(member.id)
 
         if not account:
@@ -276,7 +276,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Export accounts as a .csv file. When using a spreadsheet program use "Format quoted field as text"."""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if not guild_info.accounts:
             raise SDGException('This server has no accounts!')
@@ -325,7 +325,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mode: typing.Literal['SET', 'ADD']
     ):
         """Import a csv file of accounts"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         all_rsf = guild_info.roles + guild_info.subalignments + guild_info.factions
 
         await interaction.response.defer()
@@ -445,7 +445,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.describe(member='The member to view scrolls of. You need to be trusted to view other\'s scrolls')
     async def scroll_view(self, interaction: Interaction, member: discord.User | None = None):
         """View your own or someone else's equipped scrolls"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if interaction.user != member and not await utils.mod_check(interaction):
             raise SDGException('You don\'t have permission to view other account\'s scrolls.')
@@ -485,7 +485,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             scroll_type: typing.Literal['Blessed', 'Cursed']
     ):
         """Add a scroll to your account"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = guild_info.get_account(interaction.user.id)
         settings = guild_info.guild_settings
 
@@ -538,7 +538,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             scroll: app_commands.Transform[Role | Subalignment | Faction, ScrollTransformer],
     ):
         """Removes a scroll from your account"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = guild_info.get_account(interaction.user.id)
         scroll_type = ''
 
@@ -574,7 +574,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Add a game result to a player or multiple players"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if member is None and mentions_message is None:
             raise SDGException('You need to specify either member or mentions_message')
@@ -624,7 +624,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Sets the amount of games to a player or multiple players"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if member is None and mentions_message is None:
             raise SDGException('You need to specify either member or mentions_message')

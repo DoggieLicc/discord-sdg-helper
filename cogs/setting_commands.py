@@ -18,7 +18,7 @@ class SettingCog(commands.GroupCog, group_name='settings'):
     @app_commands.command(name='view')
     async def view_settings(self, interaction: discord.Interaction):
         """View the current server settings"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         settings = guild_info.guild_settings
 
         embed = utils.create_embed(
@@ -59,7 +59,7 @@ class SettingCog(commands.GroupCog, group_name='settings'):
             faction_scroll_multiplier: app_commands.Range[int, 1] | None = None
     ):
         """Edit the server settings"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         settings = guild_info.guild_settings
         accounts_creatable = accounts_creatable if accounts_creatable is not None else settings.accounts_creatable
         roles_are_scrollable = roles_are_scrollable if (

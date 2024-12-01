@@ -38,7 +38,7 @@ class ContextMenuCog(commands.Cog):
 
         channel_mentions = message.channel_mentions
         cleaned_content = message.content
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         channel_link_regex = (r"https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?P<guild_id>[0-9]{"
                               r"15,19})\/(?P<channel_id>[0-9]{15,19})?")

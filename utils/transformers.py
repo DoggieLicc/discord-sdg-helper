@@ -47,8 +47,8 @@ class MessageTransformer(app_commands.Transformer):
             if state_msg:
                 return state_msg
 
-            channel = (interaction.guild.get_channel_or_thread(channel_id) or
-                       await interaction.guild.fetch_channel(channel_id))
+            guild = interaction.guild
+            channel = guild.get_channel_or_thread(channel_id) or await guild.fetch_channel(channel_id)
 
             message = await channel.fetch_message(message_id)
             return message

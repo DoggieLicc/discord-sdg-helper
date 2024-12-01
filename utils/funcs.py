@@ -1,8 +1,13 @@
 import io
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import discord
 from discord import Embed, User, Member
+
+if TYPE_CHECKING:
+    import utils
+    OptionalGuildInfo = None | utils.GuildInfo
 
 
 __all__ = [
@@ -17,7 +22,7 @@ __all__ = [
 ]
 
 
-def get_guild_info(interaction: discord.Interaction):
+def get_guild_info(interaction: discord.Interaction) -> 'OptionalGuildInfo':
     for g in interaction.client.guild_info:
         if g.guild_id == interaction.guild_id:
             return g
@@ -40,7 +45,7 @@ def create_embed(user: User | Member | None, *, image=None, thumbnail=None, **kw
     return embed
 
 
-def user_friendly_dt(dt: datetime):
+def user_friendly_dt(dt: datetime) -> str:
     """Format a datetime as "short_date (relative_date)" """
     return discord.utils.format_dt(dt, style='f') + f' ({discord.utils.format_dt(dt, style="R")})'
 
@@ -94,7 +99,7 @@ async def admin_check(interaction: discord.Interaction) -> bool:
     return False
 
 
-def get_interaction_parameter(interaction: discord.Interaction, name: str, default=None):
+def get_interaction_parameter(interaction: discord.Interaction, name: str, default=None) -> str:
     value = None
     try:
         options = interaction.data.get('options')
@@ -114,11 +119,11 @@ def get_interaction_parameter(interaction: discord.Interaction, name: str, defau
 def get_valid_roles(
         include_tags: str,
         exclude_tags: str,
-        guild_info,
-        faction,
-        subalignment,
+        guild_info: 'utils.GuildInfo',
+        faction: 'utils.Faction',
+        subalignment: 'utils.Subalignment',
         guild: discord.Guild
-) -> list:
+) -> list['utils.Role']:
     valid_roles = []
     split_include_tags = include_tags.split()
     split_exclude_tags = exclude_tags.split()
