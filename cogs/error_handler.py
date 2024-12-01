@@ -31,10 +31,19 @@ class ErrorCog(commands.Cog):
             error = error.original
 
         if isinstance(error, app_commands.TransformerError):
-            error_message = f'Invalid option "{error.value}" for {error.type}'
+            transformer_name = type(error.transformer).__name__.replace('Transformer', '')
+            error_message = f'Invalid option "{error.value}" for {transformer_name}!\n' + \
+                            '(You need to select the autocomplete options provided)'
 
         if isinstance(error, app_commands.CheckFailure):
+            command = interaction.command
             error_message = 'You aren\'t allowed to use that command!'
+
+            if command and command.checks:
+                if command.checks[0] is utils.mod_check:
+                    error_message = 'You need either "Manage Channels" or have Trust (/trust add) to run this command!'
+                elif command.checks[0] is utils.admin_check:
+                    error_message = 'You need Administrator permissions to run this command!'
 
         if isinstance(error, app_commands.MissingPermissions):
             error_message = f'You are missing the following permissions: {error.missing_permissions}'

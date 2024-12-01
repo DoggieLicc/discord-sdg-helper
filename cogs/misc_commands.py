@@ -373,6 +373,9 @@ class MiscCog(commands.Cog):
         guild_info: utils.GuildInfo = get_guild_info(interaction)
         accounts = guild_info.accounts
 
+        if not accounts:
+            raise SDGException('This server has no accounts!')
+
         if ranking == '# of Wins':
             accounts.sort(key=lambda a: a.num_wins, reverse=True)
             view = WinLeaderboardMenu(interaction.user, accounts)
