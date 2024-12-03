@@ -64,6 +64,8 @@ class ContextMenuCog(commands.Cog):
         cleaned_content = message.content
         guild_info = utils.get_guild_info(interaction)
 
+        await interaction.response.defer()
+
         channel_link_regex = (r"https?:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/channels\/(?P<guild_id>[0-9]{"
                               r"15,19})\/(?P<channel_id>[0-9]{15,19})?")
 
@@ -120,7 +122,7 @@ class ContextMenuCog(commands.Cog):
 
         view = RegenerateView(interaction.user, rolelist_info, guild_info.roles)
 
-        await interaction.response.send_message(roles_str, view=view)
+        await interaction.followup.send(roles_str, view=view)
 
 
 async def setup(bot):
