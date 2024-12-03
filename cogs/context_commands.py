@@ -3,9 +3,56 @@ import re
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.ui import View, Button
 
 import utils
 from utils import SDGException, generate_rolelist_roles
+
+
+class RegenerateView(View):
+    def __init__(self, owner: discord.User, rolelist, roles: list[utils.Role]):
+        self.owner = owner
+        self.rolelist = rolelist
+        self.roles = roles
+        self.message = None
+        super().__init__(timeout=360)
+
+    @discord.ui.button(label='Regenerate Roles', style=discord.ButtonStyle.blurple)
+    async def far_left(self, interaction: discord.Interaction, _: Button):
+        roles = generate_rolelist_roles(self.rolelist, self.roles)
+
+        roles_str_list = []
+
+        for role in roles:
+            faction_channel = interaction.client.get_channel(role.faction.id)
+            sub_tag = faction_channel.get_tag(role.subalignment.id)
+            roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
+
+        roles_str = '\n'.join(roles_str_list)
+
+        await interaction.followup.send(roles_str)
+
+    async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
+        await interaction.response.defer()
+        self.message = interaction.message
+
+        if interaction.user != self.owner:
+            await interaction.followup.send('You didn\'t use this command!', ephemeral=True)
+            return False
+
+        return True
+
+    async def on_timeout(self) -> None:
+        children = self.children
+        for child in children:
+            child.disabled = True
+        self._children = children
+
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
 
 class ContextMenuCog(commands.Cog):
@@ -94,7 +141,9 @@ class ContextMenuCog(commands.Cog):
         if not roles_str:
             raise SDGException('No slots specified in message!')
 
-        await interaction.response.send_message(roles_str)
+        view = RegenerateView(interaction.user, rolelist_info, roles)
+
+        await interaction.response.send_message(roles_str, view=view)
 
 
 async def setup(bot):
