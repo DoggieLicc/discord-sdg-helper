@@ -104,23 +104,44 @@ class Modifier(ABC):
 @dataclass(slots=True)
 class MutualExclusiveModifier(Modifier):
     mutual_exclusive_roles: list[Role]
+    mutual_exclusive_roles2: None | list[Role] = None
 
     def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
         valid_roles = []
-        for role in in_roles:
-            if role not in self.mutual_exclusive_roles:
-                valid_roles.append(role)
-                continue
+        if self.mutual_exclusive_roles2 is None:
+            for role in in_roles:
+                if role not in self.mutual_exclusive_roles:
+                    valid_roles.append(role)
+                    continue
 
-            is_valid = True
-            for prev_role in prev_roles:
-                if prev_role in self.mutual_exclusive_roles:
-                    is_valid = False
+                is_valid = True
+                for prev_role in prev_roles:
+                    if prev_role in self.mutual_exclusive_roles:
+                        is_valid = False
+                        break
 
-            if not is_valid:
-                continue
+                if is_valid:
+                    valid_roles.append(role)
+        else:
+            for role in in_roles:
+                if role not in self.mutual_exclusive_roles + self.mutual_exclusive_roles2:
+                    valid_roles.append(role)
+                    continue
 
-            valid_roles.append(role)
+                is_valid = True
+                for prev_role in prev_roles:
+                    if role in self.mutual_exclusive_roles:
+                        if prev_role in self.mutual_exclusive_roles2:
+                            is_valid = False
+                            break
+
+                    if role in self.mutual_exclusive_roles2:
+                        if prev_role in self.mutual_exclusive_roles:
+                            is_valid = False
+                            break
+
+                if is_valid:
+                    valid_roles.append(role)
 
         return valid_roles
 
@@ -344,15 +365,23 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
 
         return LimitModifier(roles, limit)
 
-    if modifier_name in ['exclusive', 'mutualexclusive', 'mutualexclusivity', 'mutexclusive', 'mexc']:
+    if modifier_name in ['exclusive', 'mutualexclusive', 'mutualexclusivity', 'mutexclusive', 'mexc', 'exc']:
         roles_str = arguments[1].strip()
         filters = get_str_filters(roles_str).filters
         roles = process_filters(all_roles, filters)
 
+        second_roles_str = arguments[2].strip() if len(arguments) >= 3 else None
+        second_roles = None
+        if second_roles_str is not None:
+            filters2 = get_str_filters(second_roles_str).filters
+            second_roles = process_filters(all_roles, filters2)
+            if not second_roles:
+                raise SDGException(f'No roles for {second_roles_str}')
+
         if not roles:
             raise SDGException(f'No roles for {roles_str}')
 
-        return MutualExclusiveModifier(roles)
+        return MutualExclusiveModifier(roles, second_roles)
 
     raise SDGException(f'Invalid modifier: {modifier_str}')
 
