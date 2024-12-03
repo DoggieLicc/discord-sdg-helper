@@ -1,4 +1,5 @@
 import re
+import time
 
 import discord
 from discord import app_commands
@@ -18,7 +19,11 @@ class RegenerateView(utils.CustomView):
 
     @discord.ui.button(label='Regenerate Roles', style=discord.ButtonStyle.blurple)
     async def far_left(self, interaction: discord.Interaction, _: Button):
+        start_time = time.time()
         roles = generate_rolelist_roles(self.rolelist, self.roles)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        elapsed_time_str = f'\n\nGenerated roles in {elapsed_time:4f} seconds'
 
         roles_str_list = []
 
@@ -29,7 +34,7 @@ class RegenerateView(utils.CustomView):
 
         roles_str = '\n'.join(roles_str_list)
 
-        await interaction.followup.send(roles_str)
+        await interaction.followup.send(roles_str + elapsed_time_str)
 
 
 class ContextMenuCog(commands.Cog):
@@ -106,7 +111,11 @@ class ContextMenuCog(commands.Cog):
         if len(rolelist_info.slots) > 30:
             raise SDGException('Too many slots! Max number of slots is 30')
 
+        start_time = time.time()
         roles = generate_rolelist_roles(rolelist_info, guild_info.roles)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        elapsed_time_str = f'\n\nGenerated roles in {elapsed_time:4f} seconds'
 
         roles_str_list = []
 
@@ -122,7 +131,7 @@ class ContextMenuCog(commands.Cog):
 
         view = RegenerateView(interaction.user, rolelist_info, guild_info.roles)
 
-        await interaction.followup.send(roles_str, view=view)
+        await interaction.followup.send(roles_str + elapsed_time_str, view=view)
 
 
 async def setup(bot):
