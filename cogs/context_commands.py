@@ -3,19 +3,18 @@ import re
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ui import View, Button
+from discord.ui import Button
 
 import utils
 from utils import SDGException, generate_rolelist_roles
 
 
-class RegenerateView(View):
+class RegenerateView(utils.CustomView):
     def __init__(self, owner: discord.User, rolelist, roles: list[utils.Role]):
-        self.owner = owner
         self.rolelist = rolelist
         self.roles = roles
         self.message = None
-        super().__init__(timeout=360)
+        super().__init__(owner)
 
     @discord.ui.button(label='Regenerate Roles', style=discord.ButtonStyle.blurple)
     async def far_left(self, interaction: discord.Interaction, _: Button):
@@ -31,28 +30,6 @@ class RegenerateView(View):
         roles_str = '\n'.join(roles_str_list)
 
         await interaction.followup.send(roles_str)
-
-    async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
-        await interaction.response.defer()
-        self.message = interaction.message
-
-        if interaction.user != self.owner:
-            await interaction.followup.send('You didn\'t use this command!', ephemeral=True)
-            return False
-
-        return True
-
-    async def on_timeout(self) -> None:
-        children = self.children
-        for child in children:
-            child.disabled = True
-        self._children = children
-
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except discord.NotFound:
-                pass
 
 
 class ContextMenuCog(commands.Cog):
