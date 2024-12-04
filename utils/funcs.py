@@ -1,4 +1,5 @@
 import io
+import csv
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,8 @@ __all__ = [
     'mod_check',
     'admin_check',
     'get_interaction_parameter',
-    'get_valid_roles'
+    'get_valid_roles',
+    'generate_gamestate_csv'
 ]
 
 
@@ -156,3 +158,29 @@ def get_valid_roles(
         valid_roles.append(role)
 
     return valid_roles
+
+
+def generate_gamestate_csv(
+        users: list[discord.User],
+        roles: list['utils.Role'] | None
+) -> discord.File:
+    file_buffer = io.StringIO()
+    with file_buffer as csvfile:
+        fields = ['#', 'Player', 'Role', 'Status Effects']
+        for i in range(5):
+            fields.append(f'D{i}')
+            fields.append(f'N{i}')
+        csvwriter = csv.DictWriter(csvfile, fields)
+        csvwriter.writeheader()
+
+        for i, user in enumerate(users):
+            role = roles[i] if roles else None
+            user_dict = {
+                '#': i+1,
+                'Player': str(user),
+                'Role': role.name if role else None
+            }
+            csvwriter.writerow(user_dict)
+
+        file_buffer.seek(0)
+        return discord.File(file_buffer, 'gamestate.csv')

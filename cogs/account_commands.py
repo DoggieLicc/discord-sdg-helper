@@ -12,12 +12,10 @@ import utils
 from utils import SDGException, DiscordClient, Account, Role, Subalignment, Faction, RSFTransformer, ScrollTransformer
 
 
-class DeleteConfirm(discord.ui.View):
+class DeleteConfirm(utils.CustomView):
     def __init__(self, owner: discord.User):
-        super().__init__()
+        super().__init__(owner=owner)
         self.value = None
-        self.owner = owner
-        self.message = None
 
     @discord.ui.button(label='Delete Account', style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button):
@@ -40,30 +38,6 @@ class DeleteConfirm(discord.ui.View):
         await interaction.followup.send(embed=embed, ephemeral=True)
         self.value = False
         await self.on_timeout()
-
-    async def interaction_check(self, interaction: Interaction, /) -> bool:
-        await interaction.response.defer()
-        self.message = interaction.message
-
-        if interaction.user != self.owner:
-            await interaction.followup.send('You didn\'t use this command!', ephemeral=True)
-            return False
-
-        return True
-
-    async def on_timeout(self) -> None:
-        children = self.children
-        for child in children:
-            child.disabled = True
-        self._children = children
-
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except discord.NotFound:
-                pass
-
-        self.stop()
 
 
 @app_commands.guild_only()

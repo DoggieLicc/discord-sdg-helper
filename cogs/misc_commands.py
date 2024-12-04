@@ -1,5 +1,4 @@
 import random
-import re
 import typing
 from dataclasses import dataclass
 from abc import abstractmethod
@@ -133,7 +132,7 @@ class MiscCog(commands.Cog):
 
     def assign_roles_to_players(
             self,
-            players: list[discord.User],
+            players: list[discord.User | discord.Member],
             roles: list[Role],
             guild_info: GuildInfo,
             use_scrolls: bool = True
@@ -418,25 +417,20 @@ class MiscCog(commands.Cog):
     ):
         """Assign generated roles to players using their account scrolls."""
         guild_info: utils.GuildInfo = get_guild_info(interaction)
-        message_mentions = mentions_message.mentions
-        role_mentions = mentions_message.role_mentions
+        raw_message_mentions: list[int] = mentions_message.raw_mentions
         settings = guild_info.guild_settings
 
-        channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
-
         generated_roles = []
-        for match in re.finditer(channel_mention_regex, roles_message.content):
-            channel_id = match.group(1)
-            role = [r for r in guild_info.roles if int(channel_id) == r.id]
-            if role:
-                generated_roles.append(role[0])
+        for channel_id in roles_message.raw_channel_mentions:
+            for role_ in guild_info.roles:
+                if role_.id == channel_id:
+                    generated_roles.append(role_)
 
-        random.shuffle(generated_roles)
-
-        for role in role_mentions:
-            for member in role.members:
-                if member not in message_mentions:
-                    message_mentions.append(member)
+        message_mentions = []
+        for mention in raw_message_mentions:
+            member = interaction.guild.get_member(mention)
+            if member:
+                message_mentions.append(member)
 
         if not generated_roles:
             raise SDGException('No roles found in provided message!')
@@ -454,13 +448,24 @@ class MiscCog(commands.Cog):
         await interaction.response.defer(ephemeral=ephemeral)
 
         distributed_players = self.assign_roles_to_players(
-            message_mentions,
+            message_mentions.copy(),
             generated_roles,
             guild_info,
             use_account_scrolls
         )
 
-        role_str = '\n'.join(f'{p.user.mention} - {p.role.name} (<#{p.role.id}>)' for p in distributed_players)
+        sorted_players = []
+        for i in range(len(distributed_players)):
+            user = message_mentions[i]
+            for player in distributed_players:
+                if player.user == user:
+                    sorted_players.append(player)
+                    break
+
+        role_str = '\n'.join(f'{p.user.mention} - {p.role.name} (<#{p.role.id}>)' for p in sorted_players)
+
+        distributed_users = [p.user for p in sorted_players]
+        distributed_roles = [p.role for p in sorted_players]
 
         embed = utils.create_embed(
             interaction.user,
@@ -477,7 +482,7 @@ class MiscCog(commands.Cog):
                           f'------------ SCROLLS ------------\n'
 
             # Scroll details
-            for player in distributed_players:
+            for player in sorted_players:
                 user = player.user
                 player_scroll_str = f'{user}:\n'
                 account = guild_info.get_account(user.id)
@@ -504,7 +509,7 @@ class MiscCog(commands.Cog):
 
             details_str += '------------ ROLE WEIGHTS ------------\n'
 
-            for player in distributed_players:
+            for player in sorted_players:
                 roles = player.weight[0]
                 weight_nums = player.weight[1]
                 weight_str = f'{player.user}: '
@@ -517,7 +522,9 @@ class MiscCog(commands.Cog):
 
             file = utils.str_to_file(details_str.strip('\n |'), filename='details.txt')
 
-        await interaction.followup.send(embed=embed, file=file or discord.utils.MISSING)
+        view = utils.GenerateCSVView(interaction.user, distributed_users, distributed_roles, ephemeral)
+
+        await interaction.followup.send(embed=embed, view=view, file=file or discord.utils.MISSING)
 
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
@@ -545,28 +552,21 @@ class MiscCog(commands.Cog):
     ):
         """Generate mod threads using mentions from the provided message"""
 
-        message = mentions_message
-        guild_info = get_guild_info(interaction)
-
-        message_mentions = message.mentions
-        role_mentions = message.role_mentions
-
-        channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
+        guild_info: utils.GuildInfo = get_guild_info(interaction)
+        raw_message_mentions: list[int] = mentions_message.raw_mentions
 
         generated_roles = []
         if roles_message:
-            for match in re.finditer(channel_mention_regex, roles_message.content):
-                channel_id = match.group(1)
-                role = [r for r in guild_info.roles if int(channel_id) == r.id]
-                if role:
-                    generated_roles.append(role[0])
+            for channel_id in roles_message.raw_channel_mentions:
+                for role_ in guild_info.roles:
+                    if role_.id == channel_id:
+                        generated_roles.append(role_)
 
-        random.shuffle(generated_roles)
-
-        for role in role_mentions:
-            for member in role.members:
-                if member not in message_mentions:
-                    message_mentions.append(member)
+        message_mentions = []
+        for mention in raw_message_mentions:
+            member = interaction.guild.get_member(mention)
+            if member:
+                message_mentions.append(member)
 
         if roles_message and not generated_roles:
             raise SDGException('No roles found in provided message!')
@@ -585,13 +585,26 @@ class MiscCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         distributed_players = []
+        distributed_users = None
+        distributed_roles = None
         if generated_roles:
             distributed_players = self.assign_roles_to_players(
-                message_mentions,
+                message_mentions.copy(),
                 generated_roles,
                 guild_info,
                 use_account_scrolls
             )
+
+            sorted_players = []
+            for i in range(len(distributed_players)):
+                user = message_mentions[i]
+                for player in distributed_players:
+                    if player.user == user:
+                        sorted_players.append(player)
+                        break
+
+            distributed_users = [p.user for p in sorted_players]
+            distributed_roles = [p.role for p in sorted_players]
 
         for member in message_mentions:
             thread = await interaction.channel.create_thread(
@@ -617,7 +630,9 @@ class MiscCog(commands.Cog):
             description=f'Generated {len(message_mentions)} private threads'
         )
 
-        await interaction.followup.send(embed=embed)
+        view = utils.GenerateCSVView(interaction.user, distributed_users or message_mentions, distributed_roles)
+
+        await interaction.followup.send(embed=embed, view=view)
 
 
 async def setup(bot):

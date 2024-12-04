@@ -7,14 +7,15 @@ from discord import Interaction
 from discord.ui import View, Button, Item
 from discord.ext.commands import Paginator
 
-from utils.funcs import create_embed
+from utils.funcs import create_embed, generate_gamestate_csv
 
 
 __all__ = [
     'PaginatedMenu',
     'PollSelect',
     'PollSelectButton',
-    'CustomView'
+    'CustomView',
+    'GenerateCSVView'
 ]
 
 
@@ -35,16 +36,19 @@ class CustomView(View):
         return True
 
     async def on_timeout(self) -> None:
-        children = self.children
-        for child in children:
-            child.disabled = True
-        self._children = children
+        self.disable_children()
 
         if self.message:
             try:
                 await self.message.edit(view=self)
             except discord.NotFound:
                 pass
+
+    def disable_children(self) -> None:
+        children = self.children
+        for child in children:
+            child.disabled = True
+        self._children = children
 
     async def on_error(self, interaction: Interaction, error: Exception, item: Item[Any], /) -> None:
         print(type(error), error)
@@ -180,3 +184,30 @@ class PollSelectButton(discord.ui.Button):
             self.view.stop()
         else:
             await interaction.followup.send('Not your button!', ephemeral=True)
+
+
+class GenerateCSVView(CustomView):
+    def __init__(
+            self,
+            owner: discord.User,
+            players: list[discord.User],
+            roles: list[discord.Role],
+            ephemeral: bool = True
+    ):
+        super().__init__(owner=owner)
+        self.players = players
+        self.roles = roles
+        self.ephemeral = ephemeral
+
+    @discord.ui.button(label='Generate Gamestate CSV', style=discord.ButtonStyle.blurple)
+    async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button):
+        csv_file = generate_gamestate_csv(self.players, self.roles)
+        await interaction.followup.send(file=csv_file, ephemeral=self.ephemeral)
+        self.disable_children()
+
+        try:
+            await interaction.edit_original_response(view=self)
+        except discord.NotFound:
+            pass
+
+        self.stop()
