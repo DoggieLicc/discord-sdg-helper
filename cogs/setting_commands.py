@@ -4,11 +4,13 @@ from discord import app_commands
 from discord.ext import commands
 
 import utils
-from utils import SDGException, DiscordClient
+from utils import DiscordClient
 
 
 @app_commands.guild_only()
 class SettingCog(commands.GroupCog, group_name='settings'):
+    """Commands to view and modify server settings"""
+
     def __init__(self, client):
         self.client: DiscordClient = client
 
@@ -16,7 +18,7 @@ class SettingCog(commands.GroupCog, group_name='settings'):
     @app_commands.command(name='view')
     async def view_settings(self, interaction: discord.Interaction):
         """View the current server settings"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         settings = guild_info.guild_settings
 
         embed = utils.create_embed(
@@ -57,15 +59,24 @@ class SettingCog(commands.GroupCog, group_name='settings'):
             faction_scroll_multiplier: app_commands.Range[int, 1] | None = None
     ):
         """Edit the server settings"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         settings = guild_info.guild_settings
+        accounts_creatable = accounts_creatable if accounts_creatable is not None else settings.accounts_creatable
+        roles_are_scrollable = roles_are_scrollable if (
+                roles_are_scrollable is not None) else settings.roles_are_scrollable
+
+        subalignments_are_scrollable = subalignments_are_scrollable if (
+                subalignments_are_scrollable is not None) else settings.subalignments_are_scrollable
+
+        factions_are_scrollable = factions_are_scrollable if (
+                factions_are_scrollable is not None) else settings.factions_are_scrollable
 
         new_settings = utils.GuildSettings(
-            accounts_creatable=accounts_creatable if accounts_creatable is not None else settings.accounts_creatable,
+            accounts_creatable=accounts_creatable,
             max_scrolls=max_scrolls or settings.max_scrolls,
-            roles_are_scrollable=roles_are_scrollable if roles_are_scrollable is not None else settings.roles_are_scrollable,
-            subalignments_are_scrollable=subalignments_are_scrollable if subalignments_are_scrollable is not None else settings.subalignments_are_scrollable,
-            factions_are_scrollable=factions_are_scrollable if factions_are_scrollable is not None else settings.factions_are_scrollable,
+            roles_are_scrollable=roles_are_scrollable,
+            subalignments_are_scrollable=subalignments_are_scrollable,
+            factions_are_scrollable=factions_are_scrollable,
             role_scroll_multiplier=role_scroll_multiplier or settings.role_scroll_multiplier,
             subalignment_scroll_multiplier=subalignment_scroll_multiplier or settings.subalignment_scroll_multiplier,
             faction_scroll_multiplier=faction_scroll_multiplier or settings.faction_scroll_multiplier

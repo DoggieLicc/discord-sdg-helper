@@ -1,7 +1,15 @@
-import asqlite
 import os
 
 from dataclasses import dataclass
+
+import asqlite
+
+
+__all__ = [
+    'BaseColumn',
+    'BaseTable',
+    'DatabaseHelper'
+]
 
 
 @dataclass(slots=True)
@@ -46,7 +54,8 @@ class DatabaseHelper:
         async with self.db as conn:
             for table in self.base_tables:
                 column_schema = ', '.join(
-                    f'{col.name} {col.datatype}{" " + col.addit_schema if col.addit_schema else ""}' for col in table.columns
+                    f'{col.name} {col.datatype}{" " + col.addit_schema if col.addit_schema else ""}'
+                    for col in table.columns
                 )
                 command = f"CREATE TABLE IF NOT EXISTS {table.name} ({column_schema})"
                 await conn.execute(command)

@@ -1,64 +1,95 @@
 from __future__ import annotations
 
-import copy
 import random
 
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 
-import utils
-from utils import Role
+from utils.classes import Role, SDGException
+
+
+__all__ = [
+    'generate_rolelist_roles',
+    'get_rolelist'
+]
+
+
+@dataclass(frozen=True)
+class PartialRole:
+    id: int
+    name: str
+    faction_name: str
+    tags: frozenset[str]
+
+    @classmethod
+    def from_role(cls, role: Role) -> PartialRole:
+        tags = role.forum_tags | {role.subalignment.name}
+        partial_role = cls(
+            id=role.id,
+            name=role.name,
+            faction_name=role.faction.name,
+            tags=frozenset(tags),
+        )
+        return partial_role
+
+    def to_role(self, full_roles: list[Role]) -> Role:
+        for role in full_roles:
+            if role.id == self.id:
+                return role
+        raise SDGException(f'Unable to convert partial role {self.name} to full role')
 
 
 @dataclass(slots=True)
-class Filter:
+class Filter(ABC):
     negated: bool
     filter_str: str
 
-    def filter_roles(self, in_roles: list[Role]) -> list[Role]:
+    @abstractmethod
+    def filter_roles(self, in_roles: set[PartialRole]) -> set[PartialRole]:
         ...
 
 
 @dataclass(slots=True)
 class RoleFilter(Filter):
-    def filter_roles(self, in_roles: list[Role]) -> list[Role]:
-        valid_roles = []
+    def filter_roles(self, in_roles: set[PartialRole]) -> set[PartialRole]:
+        valid_roles = set()
         for role in in_roles:
             add_role = role.name.lower().strip() == self.filter_str.lower().strip()
             if self.negated:
                 add_role = not add_role
 
             if add_role:
-                valid_roles.append(role)
+                valid_roles.add(role)
 
         return valid_roles
 
 
 @dataclass(slots=True)
 class FactionFilter(Filter):
-    def filter_roles(self, in_roles: list[Role]) -> list[Role]:
-        valid_roles = []
+    def filter_roles(self, in_roles: set[PartialRole]) -> set[PartialRole]:
+        valid_roles = set()
+        filter_name = self.filter_str.lower().strip()
         for role in in_roles:
-            add_role = role.faction.name.lower().strip() == self.filter_str.lower().strip()
+            add_role = role.faction_name.lower().strip() == filter_name
             if self.negated:
                 add_role = not add_role
 
             if add_role:
-                valid_roles.append(role)
+                valid_roles.add(role)
 
         return valid_roles
 
 
 @dataclass(slots=True)
 class TagFilter(Filter):
-    def filter_roles(self, in_roles) -> list[Role]:
+    def filter_roles(self, in_roles: set[PartialRole]) -> set[PartialRole]:
         if self.filter_str == 'ANY':
-            return in_roles if not self.negated else None
+            return in_roles if not self.negated else set()
 
-        valid_roles = []
+        valid_roles = set()
         for role in in_roles:
             add_role = False
-            forum_tags = list(role.forum_tags) + [role.subalignment.name]
-            for tag in forum_tags:
+            for tag in role.tags:
                 if tag.lower().strip() == self.filter_str.lower().strip():
                     add_role = True
                     continue
@@ -67,7 +98,7 @@ class TagFilter(Filter):
                 add_role = not add_role
 
             if add_role:
-                valid_roles.append(role)
+                valid_roles.add(role)
 
         return valid_roles
 
@@ -76,54 +107,77 @@ class TagFilter(Filter):
 class UnionFilter(Filter):
     unioned_filters: list[Filter]
 
-    def filter_roles(self, in_roles) -> list[Role]:
-        valid_roles = []
+    def filter_roles(self, in_roles: set[PartialRole]) -> set[PartialRole]:
+        valid_roles = set()
 
         for _filter in self.unioned_filters:
             for role in _filter.filter_roles(in_roles):
                 if role not in valid_roles:
-                    valid_roles.append(role)
+                    valid_roles.add(role)
 
         return valid_roles
 
 
 @dataclass(slots=True)
-class Modifier:
-    def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
+class Modifier(ABC):
+    @abstractmethod
+    def modify_valid_roles(self, in_roles: set[PartialRole], prev_roles: list[PartialRole]) -> set[PartialRole]:
         ...
 
 
 @dataclass(slots=True)
 class MutualExclusiveModifier(Modifier):
-    mutual_exclusive_roles: list[Role]
+    mutual_exclusive_roles: set[PartialRole]
+    mutual_exclusive_roles2: None | set[PartialRole] = None
 
-    def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
-        valid_roles = []
-        for role in in_roles:
-            if role not in self.mutual_exclusive_roles:
-                valid_roles.append(role)
-                continue
+    def modify_valid_roles(self, in_roles: set[PartialRole], prev_roles: list[PartialRole]) -> set[PartialRole]:
+        valid_roles = set()
+        if self.mutual_exclusive_roles2 is None:
+            for role in in_roles:
+                if role not in self.mutual_exclusive_roles:
+                    valid_roles.add(role)
+                    continue
 
-            is_valid = True
-            for prev_role in prev_roles:
-                if prev_role in self.mutual_exclusive_roles:
-                    is_valid = False
+                is_valid = True
+                for prev_role in prev_roles:
+                    if prev_role in self.mutual_exclusive_roles:
+                        is_valid = False
+                        break
 
-            if not is_valid:
-                continue
+                if is_valid:
+                    valid_roles.add(role)
+        else:
+            all_mut_roles = self.mutual_exclusive_roles | self.mutual_exclusive_roles2
+            for role in in_roles:
+                if role not in all_mut_roles:
+                    valid_roles.add(role)
+                    continue
 
-            valid_roles.append(role)
+                is_valid = True
+                for prev_role in prev_roles:
+                    if role in self.mutual_exclusive_roles:
+                        if prev_role in self.mutual_exclusive_roles2:
+                            is_valid = False
+                            break
+
+                    if role in self.mutual_exclusive_roles2:
+                        if prev_role in self.mutual_exclusive_roles:
+                            is_valid = False
+                            break
+
+                if is_valid:
+                    valid_roles.add(role)
 
         return valid_roles
 
 
 @dataclass(slots=True)
 class LimitModifier(Modifier):
-    limited_roles: list[Role]
+    limited_roles: set[PartialRole]
     limit: int
 
-    def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
-        valid_roles = []
+    def modify_valid_roles(self, in_roles: set[PartialRole], prev_roles: list[PartialRole]) -> set[PartialRole]:
+        valid_roles = set()
         num_roles = 0
 
         for prev_role in prev_roles:
@@ -132,30 +186,31 @@ class LimitModifier(Modifier):
 
         for in_role in in_roles:
             if in_role not in self.limited_roles or num_roles < self.limit:
-                valid_roles.append(in_role)
+                valid_roles.add(in_role)
 
         return valid_roles
 
 
 @dataclass(slots=True)
 class IndividualityModifier(Modifier):
-    indv_roles: list[Role]
+    indv_roles: set[PartialRole]
 
-    def modify_valid_roles(self, in_roles: list[Role], prev_roles: list[Role]) -> list[Role]:
-        valid_roles = []
+    def modify_valid_roles(self, in_roles: set[PartialRole], prev_roles: list[PartialRole]) -> set[PartialRole]:
+        valid_roles = set()
         for role in in_roles:
             if role not in self.indv_roles or role not in prev_roles:
-                valid_roles.append(role)
+                valid_roles.add(role)
 
         return valid_roles
 
 
 @dataclass(slots=True)
-class WeightChanger:
-    roles: list[Role]
+class WeightChanger(ABC):
+    roles: set[PartialRole]
     argument: int
     limit: int | None
 
+    @abstractmethod
     def get_weight(self, prev_weight: int) -> int:
         ...
 
@@ -230,14 +285,13 @@ def get_str_filters(slot_str: str) -> Slot:
         slot_str = slot_str[1:]
 
     for char in slot_str:
-
-        if char == r'\\' or char == r'`':
+        if char in [r'\\', r'`']:
             continue
 
         if char == ' ' and not filter_chars:
             continue
 
-        if char in filter_dict.keys():
+        if char in filter_dict:
             if filter_chars and not next_filter:
                 next_filter = TagFilter
 
@@ -301,14 +355,14 @@ def get_str_filters(slot_str: str) -> Slot:
     return Slot(filters=filters, ignore_global=ignore_global)
 
 
-def process_filters(in_roles: list[Role], filters: list[Filter]) -> list[Role]:
-    for filter in filters:
-        in_roles = filter.filter_roles(in_roles)
+def process_filters(in_roles: set[PartialRole], filters: list[Filter]) -> set[PartialRole]:
+    for filter_ in filters:
+        in_roles = filter_.filter_roles(in_roles)
 
     return in_roles
 
 
-def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
+def get_str_modifier(modifier_str: str, all_roles: set[PartialRole]) -> Modifier:
     arguments = modifier_str.split(':')
     modifier_name = arguments[0].lower().strip()
 
@@ -321,7 +375,7 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
             roles = all_roles
 
         if not roles:
-            raise utils.SDGException(f'No roles for {roles_str}')
+            raise SDGException(f'No roles for {roles_str}')
 
         return IndividualityModifier(roles)
 
@@ -332,54 +386,64 @@ def get_str_modifier(modifier_str: str, all_roles: list[Role]) -> Modifier:
         roles = process_filters(all_roles, filters)
 
         if not roles:
-            raise utils.SDGException(f'No roles for {roles_str}')
+            raise SDGException(f'No roles for {roles_str}')
 
         return LimitModifier(roles, limit)
 
-    if modifier_name in ['exclusive', 'mutualexclusive', 'mutualexclusivity', 'mutexclusive', 'mexc']:
+    if modifier_name in ['exclusive', 'mutualexclusive', 'mutualexclusivity', 'mutexclusive', 'mexc', 'exc']:
         roles_str = arguments[1].strip()
         filters = get_str_filters(roles_str).filters
         roles = process_filters(all_roles, filters)
 
+        second_roles_str = arguments[2].strip() if len(arguments) >= 3 else None
+        second_roles = None
+        if second_roles_str is not None:
+            filters2 = get_str_filters(second_roles_str).filters
+            second_roles = process_filters(all_roles, filters2)
+            if not second_roles:
+                raise SDGException(f'No roles for {second_roles_str}')
+
         if not roles:
-            raise utils.SDGException(f'No roles for {roles_str}')
+            raise SDGException(f'No roles for {roles_str}')
 
-        return MutualExclusiveModifier(roles)
+        return MutualExclusiveModifier(roles, second_roles)
 
-    raise Exception('Invalid modifier')
+    raise SDGException(f'Invalid modifier: {modifier_str}')
 
 
-def get_weight_chnager(in_str, all_roles: list[Role]) -> WeightChanger:
+def get_weight_chnager(in_str, all_roles: set[PartialRole]) -> WeightChanger:
     arguments = in_str.split(':')
     parameter = arguments[1].lower().strip()
     symbol = parameter[0]
     number = int(parameter[1:])
     limit = int(arguments[2].strip()) if len(arguments) >= 3 else None
-    
+
     roles_str = arguments[0].lower().strip()
     filters = get_str_filters(roles_str).filters
     roles = process_filters(all_roles, filters)
 
     if not roles:
-        raise utils.SDGException(f'No roles for {roles_str} in ={in_str}')
-    
+        raise SDGException(f'No roles for {roles_str} in ={in_str}')
+
     if symbol.isnumeric():
         return WeightSet(roles, int(parameter), limit)
-    
+
     if symbol == '+':
         return WeightAdder(roles, number, limit)
-    
+
     if symbol == '-':
         return WeightSubtractor(roles, number, limit)
-    
+
     if symbol in ['*', 'x']:
         return WeightMultiplier(roles, number, limit)
-    
+
     if symbol == '/':
         return WeightDivider(roles, number, limit)
 
+    raise SDGException(f'Invalid weight changer: {in_str}')
 
-def get_role_weight(role: Role, weight_changers: list[WeightChanger]) -> int:
+
+def get_role_weight(role: PartialRole, weight_changers: list[WeightChanger]) -> int:
     valid_weights_changers = [w for w in weight_changers if w.check_role(role) and (w.limit is None or w.limit >= 1)]
     weight = 10
 
@@ -387,12 +451,12 @@ def get_role_weight(role: Role, weight_changers: list[WeightChanger]) -> int:
         weight = changer.get_weight(weight)
 
     if weight <= 0:
-        raise utils.SDGException(f'Weight of {role.name} was resolved to {weight}, under or equal to 0')
+        raise SDGException(f'Weight of {role.name} was resolved to {weight}, under or equal to 0')
 
     return weight
 
 
-def get_all_weights(roles: list[Role], weight_changers: list[WeightChanger]) -> list[int]:
+def get_all_weights(roles: list[PartialRole], weight_changers: list[WeightChanger]) -> list[int]:
     weights = []
 
     for role in roles:
@@ -407,6 +471,8 @@ def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
     slots = []
     modifiers = []
     weights = []
+    partial_roles = {PartialRole.from_role(r) for r in all_roles}
+
     for line in message_lines:
         if not line:
             continue
@@ -418,11 +484,11 @@ def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
             continue
         if line.startswith('?'):
             modifier_str = line[1:]
-            modifiers.append(get_str_modifier(modifier_str, all_roles))
+            modifiers.append(get_str_modifier(modifier_str, partial_roles))
             continue
         if line.startswith('='):
             weight_str = line[1:]
-            weights.append(get_weight_chnager(weight_str, all_roles))
+            weights.append(get_weight_chnager(weight_str, partial_roles))
             continue
 
         slot = get_str_filters(line)
@@ -431,10 +497,11 @@ def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
     return Rolelist(slots=slots, global_filters=global_filters, modifiers=modifiers, weight_changers=weights)
 
 
-def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list[Role]:
+def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[Role]:
     new_slots = []
-    roles = []
+    roles: list[PartialRole] = []
     weight_changers = rolelist.weight_changers
+    partial_roles = {PartialRole.from_role(r) for r in full_roles}
 
     for slot in rolelist.slots:
         if not slot.ignore_global:
@@ -443,7 +510,7 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
         new_slots.append(slot)
 
     for slot in new_slots:
-        valid_roles = copy.deepcopy(input_roles)
+        valid_roles = partial_roles
         for r_filter in slot.filters:
             valid_roles = r_filter.filter_roles(valid_roles)
 
@@ -451,13 +518,15 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
             valid_roles = modifier.modify_valid_roles(valid_roles, roles)
 
         if not valid_roles:
-            raise utils.SDGException(f'No valid roles for {slot}')
+            raise SDGException(f'No valid roles for {slot}')
+
+        list_valid_roles = list(valid_roles)
 
         if not rolelist.weight_changers:
-            roles.append(random.choice(valid_roles))
+            roles.append(random.choice(list_valid_roles))
         else:
-            weights = get_all_weights(valid_roles, weight_changers)
-            role = random.choices(valid_roles, weights=weights, k=1)[0]
+            weights = get_all_weights(list_valid_roles, weight_changers)
+            role = random.choices(list_valid_roles, weights=weights, k=1)[0]
 
             for weight_changer in weight_changers:
                 if weight_changer.limit and role in weight_changer.roles:
@@ -465,5 +534,6 @@ def generate_rolelist_roles(rolelist: Rolelist, input_roles: list[Role]) -> list
 
             roles.append(role)
 
-    return roles
+    refull_roles = [r.to_role(full_roles) for r in roles]
 
+    return refull_roles

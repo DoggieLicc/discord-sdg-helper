@@ -1,8 +1,7 @@
-import asyncio
 import random
-import re
 import typing
 from dataclasses import dataclass
+from abc import abstractmethod
 
 import discord
 
@@ -46,6 +45,7 @@ class LeaderboardMenu(PaginatedMenu):
         self.rank = 1
         super().__init__(*args, **kwargs)
 
+    @abstractmethod
     def get_num(self, item: utils.Account) -> str:
         ...
 
@@ -132,7 +132,7 @@ class MiscCog(commands.Cog):
 
     def assign_roles_to_players(
             self,
-            players: list[discord.User],
+            players: list[discord.User | discord.Member],
             roles: list[Role],
             guild_info: GuildInfo,
             use_scrolls: bool = True
@@ -272,12 +272,12 @@ class MiscCog(commands.Cog):
     ):
         """Starts a hidden poll that sends votes to a private thread"""
 
-        include_role_1 = [include_role_1] if include_role_1 else list()
-        include_role_2 = [include_role_2] if include_role_2 else list()
-        include_role_3 = [include_role_3] if include_role_3 else list()
-        exclude_role_1 = [exclude_role_1] if exclude_role_1 else list()
-        exclude_role_2 = [exclude_role_2] if exclude_role_2 else list()
-        exclude_role_3 = [exclude_role_3] if exclude_role_3 else list()
+        include_role_1 = [include_role_1] if include_role_1 else []
+        include_role_2 = [include_role_2] if include_role_2 else []
+        include_role_3 = [include_role_3] if include_role_3 else []
+        exclude_role_1 = [exclude_role_1] if exclude_role_1 else []
+        exclude_role_2 = [exclude_role_2] if exclude_role_2 else []
+        exclude_role_3 = [exclude_role_3] if exclude_role_3 else []
 
         included_roles = include_role_1 + include_role_2 + include_role_3
         excluded_roles = exclude_role_1 + exclude_role_2 + exclude_role_3
@@ -308,6 +308,7 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(poll_question, view=view)
 
+    @app_commands.guild_only()
     @app_commands.command(name='listroles')
     @app_commands.describe(faction='List roles part of this faction')
     @app_commands.describe(subalignment='List roles part of this subalignment')
@@ -324,36 +325,15 @@ class MiscCog(commands.Cog):
     ):
         """Lists all roles that fit the filters"""
         guild_info = get_guild_info(interaction)
-        split_include_tags = include_tags.split(',')
-        split_exclude_tags = exclude_tags.split(',')
 
-        valid_roles = []
-        for role in guild_info.roles:
-            if faction and role.faction.id != faction.id:
-                continue
-
-            if subalignment and role.subalignment.id != subalignment.id:
-                continue
-
-            role_thread = interaction.guild.get_channel_or_thread(role.id)
-            role_thread_tags = [t.name.lower().strip() for t in role_thread.applied_tags]
-            has_included_tag = not bool(include_tags)
-            has_excluded_tag = False
-
-            for exclude_tag in split_exclude_tags:
-                normalized_e_tag = exclude_tag.lower().strip()
-                if normalized_e_tag in role_thread_tags:
-                    has_excluded_tag = True
-
-            for include_tag in split_include_tags:
-                normalized_i_tag = include_tag.lower().strip()
-                if normalized_i_tag in role_thread_tags:
-                    has_included_tag = True
-
-            if has_excluded_tag or not has_included_tag:
-                continue
-
-            valid_roles.append(role)
+        valid_roles = utils.get_valid_roles(
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            guild_info=guild_info,
+            faction=faction,
+            subalignment=subalignment,
+            guild=interaction.guild
+        )
 
         valid_roles.sort(key=lambda r: r.subalignment.name)
 
@@ -373,6 +353,7 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
 
+    @app_commands.guild_only()
     @app_commands.command(name='leaderboard')
     @app_commands.describe(ranking='The ranking to view')
     @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
@@ -390,6 +371,9 @@ class MiscCog(commands.Cog):
         """View the server leaderboard"""
         guild_info: utils.GuildInfo = get_guild_info(interaction)
         accounts = guild_info.accounts
+
+        if not accounts:
+            raise SDGException('This server has no accounts!')
 
         if ranking == '# of Wins':
             accounts.sort(key=lambda a: a.num_wins, reverse=True)
@@ -414,6 +398,7 @@ class MiscCog(commands.Cog):
 
         await interaction.response.send_message(view=view, ephemeral=ephemeral, **contents)
 
+    @app_commands.guild_only()
     @app_commands.command(name='assignroles')
     @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
     @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
@@ -432,31 +417,26 @@ class MiscCog(commands.Cog):
     ):
         """Assign generated roles to players using their account scrolls."""
         guild_info: utils.GuildInfo = get_guild_info(interaction)
-        message_mentions = mentions_message.mentions
-        role_mentions = mentions_message.role_mentions
+        raw_message_mentions: list[int] = mentions_message.raw_mentions
         settings = guild_info.guild_settings
 
-        channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
-
         generated_roles = []
-        for match in re.finditer(channel_mention_regex, roles_message.content):
-            channel_id = match.group(1)
-            role = [r for r in guild_info.roles if int(channel_id) == r.id]
-            if role:
-                generated_roles.append(role[0])
+        for channel_id in roles_message.raw_channel_mentions:
+            for role_ in guild_info.roles:
+                if role_.id == channel_id:
+                    generated_roles.append(role_)
 
-        random.shuffle(generated_roles)
-
-        for role in role_mentions:
-            for member in role.members:
-                if member not in message_mentions:
-                    message_mentions.append(member)
+        message_mentions = []
+        for mention in raw_message_mentions:
+            member = interaction.guild.get_member(mention)
+            if member:
+                message_mentions.append(member)
 
         if not generated_roles:
-            raise SDGException(f'No roles found in provided message!')
+            raise SDGException('No roles found in provided message!')
 
         if len(generated_roles) != len(message_mentions):
-            raise SDGException(f'Mismatch between amount of provided roles '
+            raise SDGException('Mismatch between amount of provided roles '
                                f'({len(generated_roles)}) and amount of mentioned players ({len(message_mentions)})')
 
         if not message_mentions:
@@ -468,13 +448,24 @@ class MiscCog(commands.Cog):
         await interaction.response.defer(ephemeral=ephemeral)
 
         distributed_players = self.assign_roles_to_players(
-            message_mentions,
+            message_mentions.copy(),
             generated_roles,
             guild_info,
             use_account_scrolls
         )
 
-        role_str = '\n'.join(f'{p.user.mention} - {p.role.name} (<#{p.role.id}>)' for p in distributed_players)
+        sorted_players = []
+        for i in range(len(distributed_players)):
+            user = message_mentions[i]
+            for player in distributed_players:
+                if player.user == user:
+                    sorted_players.append(player)
+                    break
+
+        role_str = '\n'.join(f'{p.user.mention} - {p.role.name} (<#{p.role.id}>)' for p in sorted_players)
+
+        distributed_users = [p.user for p in sorted_players]
+        distributed_roles = [p.role for p in sorted_players]
 
         embed = utils.create_embed(
             interaction.user,
@@ -491,7 +482,7 @@ class MiscCog(commands.Cog):
                           f'------------ SCROLLS ------------\n'
 
             # Scroll details
-            for player in distributed_players:
+            for player in sorted_players:
                 user = player.user
                 player_scroll_str = f'{user}:\n'
                 account = guild_info.get_account(user.id)
@@ -505,7 +496,7 @@ class MiscCog(commands.Cog):
                     else:
                         blessed_scroll_str += ', '.join(s.name for s in blessed_scrolls)
                     player_scroll_str += blessed_scroll_str + '\n'
-                    
+
                     cursed_scroll_str = 'Cursed: '
                     cursed_scrolls = account.cursed_scrolls
                     if not cursed_scrolls:
@@ -518,13 +509,12 @@ class MiscCog(commands.Cog):
 
             details_str += '------------ ROLE WEIGHTS ------------\n'
 
-            for player in distributed_players:
+            for player in sorted_players:
                 roles = player.weight[0]
                 weight_nums = player.weight[1]
                 weight_str = f'{player.user}: '
 
-                for i in range(len(roles)):
-                    role = roles[i]
+                for i, role in enumerate(roles):
                     weight_num = weight_nums[i]
                     weight_str += f'{role.name}:{weight_num} | '
 
@@ -532,18 +522,24 @@ class MiscCog(commands.Cog):
 
             file = utils.str_to_file(details_str.strip('\n |'), filename='details.txt')
 
-        await interaction.followup.send(embed=embed, file=file or discord.utils.MISSING)
+        view = utils.GenerateCSVView(interaction.user, distributed_users, distributed_roles, ephemeral)
+
+        await interaction.followup.send(embed=embed, view=view, file=file or discord.utils.MISSING)
 
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
     @app_commands.checks.bot_has_permissions(manage_threads=True, create_private_threads=True)
     @app_commands.command(name='generatethreads')
     @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
-    @app_commands.describe(additional_message='Additonal message to send to each thread. Useful for mentioning a role etc.')
+    @app_commands.describe(
+        additional_message='Additonal message to send to each thread. Useful for mentioning a role etc.'
+    )
     @app_commands.describe(thread_name='The name to give the threads, by default it will be "Mod Thread"')
     @app_commands.describe(invitable='Whether to allow non-moderators to add others to their thread. Defaults to False')
     @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
-    @app_commands.describe(use_account_scrolls='Whether to use account scrolls if roles_link is specified. Defaults to True')
+    @app_commands.describe(
+        use_account_scrolls='Whether to use account scrolls if roles_link is specified. Defaults to True'
+    )
     async def generate_mod_threads(
             self,
             interaction: discord.Interaction,
@@ -556,36 +552,29 @@ class MiscCog(commands.Cog):
     ):
         """Generate mod threads using mentions from the provided message"""
 
-        message = mentions_message
-        guild_info = get_guild_info(interaction)
-
-        message_mentions = message.mentions
-        role_mentions = message.role_mentions
-
-        channel_mention_regex = re.compile(r'<#([0-9]{15,20})>')
+        guild_info: utils.GuildInfo = get_guild_info(interaction)
+        raw_message_mentions: list[int] = mentions_message.raw_mentions
 
         generated_roles = []
         if roles_message:
-            for match in re.finditer(channel_mention_regex, roles_message.content):
-                channel_id = match.group(1)
-                role = [r for r in guild_info.roles if int(channel_id) == r.id]
-                if role:
-                    generated_roles.append(role[0])
+            for channel_id in roles_message.raw_channel_mentions:
+                for role_ in guild_info.roles:
+                    if role_.id == channel_id:
+                        generated_roles.append(role_)
 
-        random.shuffle(generated_roles)
-
-        for role in role_mentions:
-            for member in role.members:
-                if member not in message_mentions:
-                    message_mentions.append(member)
+        message_mentions = []
+        for mention in raw_message_mentions:
+            member = interaction.guild.get_member(mention)
+            if member:
+                message_mentions.append(member)
 
         if roles_message and not generated_roles:
-            raise SDGException(f'No roles found in provided message!')
+            raise SDGException('No roles found in provided message!')
 
         if generated_roles:
             if len(generated_roles) != len(message_mentions):
-                raise SDGException(f'Mismatch between amount of provided roles '
-                                   f'({len(generated_roles)}) and amount of mentioned players ({len(message_mentions)})')
+                raise SDGException(f'Mismatch between amount of provided roles ({len(generated_roles)}) '
+                                   f'and amount of mentioned players ({len(message_mentions)})')
 
         if not message_mentions:
             raise SDGException('No users or roles are mentioned in that message!')
@@ -596,16 +585,29 @@ class MiscCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         distributed_players = []
+        distributed_users = None
+        distributed_roles = None
         if generated_roles:
             distributed_players = self.assign_roles_to_players(
-                message_mentions,
+                message_mentions.copy(),
                 generated_roles,
                 guild_info,
                 use_account_scrolls
             )
 
+            sorted_players = []
+            for i in range(len(distributed_players)):
+                user = message_mentions[i]
+                for player in distributed_players:
+                    if player.user == user:
+                        sorted_players.append(player)
+                        break
+
+            distributed_users = [p.user for p in sorted_players]
+            distributed_roles = [p.role for p in sorted_players]
+
         for member in message_mentions:
-            thread = await message.channel.create_thread(
+            thread = await interaction.channel.create_thread(
                 name=f'{member} {thread_name}',
                 auto_archive_duration=10080,
                 invitable=invitable
@@ -616,7 +618,8 @@ class MiscCog(commands.Cog):
             if distributed_players:
                 player = [p for p in distributed_players if p.user == member][0]
                 random_role = player.role
-                message_to_send = message_to_send.strip() + f'\n\n**You are the {random_role.name} (<#{random_role.id}>)**'
+                message_to_send = message_to_send.strip()
+                message_to_send += f'\n\n**You are the {random_role.name} (<#{random_role.id}>)**'
 
             await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
             await thread.leave()
@@ -627,7 +630,9 @@ class MiscCog(commands.Cog):
             description=f'Generated {len(message_mentions)} private threads'
         )
 
-        await interaction.followup.send(embed=embed)
+        view = utils.GenerateCSVView(interaction.user, distributed_users or message_mentions, distributed_roles)
+
+        await interaction.followup.send(embed=embed, view=view)
 
 
 async def setup(bot):

@@ -100,15 +100,19 @@ Examples:
 
 `?individuality:$Mafia!%Consort` - Makes all roles part of Mafia faction unique, except Consort
 
-* exclusive:**filters**
+* exclusive:**filters**:*filters2*
 
 Makes all filtered roles mutually exclusive to each other, meaning if one generates, the rest of them cant.
+
+If two arguments are specified, the filtered roles will be mutually exclusive with the other filtered roles instead
 
 Examples:
 
 `?exclusive:%Warlock|%Soul Collector` - Makes Warlock and Soul Collector mutually exclusive 
 
-`?exclusive:Town Power|Town Killing` - Makes all roles with either Town Power tag or Town Killing tag mutually exclusive to eachother
+`?exclusive:Town Power|Town Killing` - Makes all roles with either Town Power tag or Town Killing tag mutually exclusive to each other
+
+`?exclusive:!$Town:%Atheist` - Makes Atheist mutually exclusive with all non Town roles
 
 ### Weights
 
@@ -134,6 +138,6 @@ Examples:
 
 `=%Cleric:1000` - Sets weight of cleric spawning to 1000
 
-`=%Oracle:20:1` - Multiply weight of Oracle spawning by 20, but when 1 Oracle generates, the weight will be normal again for future slots
+`=%Oracle:x20:1` - Multiply weight of Oracle spawning by 20, but when 1 Oracle generates, the weight will be normal again for future slots
 
 If the filter matches no roles, or if the weight of a role <= 0, generation will fail.

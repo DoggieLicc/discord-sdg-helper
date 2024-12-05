@@ -9,6 +9,7 @@ import utils
 
 @app_commands.guild_only()
 class InfotagCog(commands.GroupCog, group_name='infotag'):
+    """Commands to create, view, and modify infotags"""
     def __init__(self, client):
         self.client: utils.DiscordClient = client
 
@@ -45,7 +46,7 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
             info_category: app_commands.Transform[InfoCategory, utils.InfoCategoryTransformer],
     ):
         """Removes an infotag"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         guild_info.info_categories.remove(info_category)
 
         for info_tag in guild_info.info_tags.copy():

@@ -1,23 +1,30 @@
 from __future__ import annotations
 
 import copy
-import re
-
-import discord
-import asqlite
-
 from dataclasses import dataclass
-from collections import Counter
-from thefuzz import process
 from typing import Any, TypeVar
 
-from discord import app_commands, Interaction
-from discord.app_commands import Choice
+import discord
 from discord.ext.commands import Bot
 from discord.state import ConnectionState
 
-from utils.funcs import get_guild_info, create_embed
-from utils.db_helper import DatabaseHelper, BaseTable, BaseColumn
+import asqlite
+from utils.db_helper import *
+
+__all__ = [
+    'SDGObject',
+    'DiscordClient',
+    'Role',
+    'Subalignment',
+    'Faction',
+    'GuildInfo',
+    'SDGException',
+    'InfoTag',
+    'InfoCategory',
+    'Account',
+    'Achievement',
+    'GuildSettings'
+]
 
 
 @dataclass(slots=True)
@@ -233,8 +240,9 @@ class CustomConnectionState(ConnectionState):
 class DiscordClient(Bot):
     def __init__(self, test_guild, do_first_sync: bool, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.TEST_GUILD = test_guild
-        self.guild_info: list[GuildInfo] = list()
+        self.test_guild = test_guild
+        self.guild_info: list[GuildInfo] = []
+        self.guild_task = None
         self.db_helper = DatabaseHelper(
             [
                 FactionTable,
@@ -251,13 +259,18 @@ class DiscordClient(Bot):
         )
         self.db_loaded = False
         self.first_sync = False
-        self.populated_forum_ids: list[int] = list()
+        self.populated_forum_ids: list[int] = []
         self.owner = None
-        self.cogs_list: list[str] = list()
+        self.cogs_list: list[str] = []
         self.do_first_sync = do_first_sync
 
     def _get_state(self, **options: Any):
-        return CustomConnectionState(dispatch=self.dispatch, handlers=self._handlers, hooks=self._hooks, http=self.http, **options)
+        return CustomConnectionState(
+            dispatch=self.dispatch,
+            handlers=self._handlers,
+            hooks=self._hooks,
+            http=self.http, **options
+        )
 
     async def get_owner(self) -> discord.User:
         if not self.owner:
@@ -388,7 +401,7 @@ class DiscordClient(Bot):
 
         return roles
 
-    def get_subalignment_faction(self, subalignment: Subalignment) -> Faction:
+    def get_subalignment_faction(self, subalignment: Subalignment) -> Faction | None:
         for channel in self.get_all_channels():
             if isinstance(channel, discord.ForumChannel):
                 for tag in channel.available_tags:
@@ -399,9 +412,11 @@ class DiscordClient(Bot):
 
                         return faction
 
+        return None
+
     async def add_archived_threads(self, forum_channel: discord.ForumChannel, force: bool = False):
         if forum_channel.id in self.populated_forum_ids and not force:
-            return
+            return None
 
         async for thread in forum_channel.archived_threads(limit=None):
             # Add to dpy's internal cache lol
@@ -568,9 +583,9 @@ class DiscordClient(Bot):
         self.guild_task = self.loop.create_task(self.load_guild_info())
 
         if self.do_first_sync:
-            if self.TEST_GUILD:
-                self.tree.copy_global_to(guild=self.TEST_GUILD)
-                await self.tree.sync(guild=self.TEST_GUILD)
+            if self.test_guild:
+                self.tree.copy_global_to(guild=self.test_guild)
+                await self.tree.sync(guild=self.test_guild)
 
             await self.tree.sync()
             print('Synced commands automatically (DO_FIRST_SYNC)')
@@ -626,12 +641,12 @@ class DiscordClient(Bot):
                 guild_id=guild.id,
                 factions=factions,
                 subalignments=subalignments,
-                roles=list(),
+                roles=[],
                 info_categories=info_categories,
-                info_tags=list(),
+                info_tags=[],
                 trusted_ids=trusted_ids,
-                achievements=list(),
-                accounts=list(),
+                achievements=[],
+                accounts=[],
                 guild_settings=guild_settings
             )
 
@@ -646,7 +661,7 @@ class DiscordClient(Bot):
 
             self.replace_guild_info(guild_info)
 
-    def replace_guild_info(self, guild_info: GuildInfo):
+    def replace_guild_info(self, guild_info: GuildInfo) -> None:
         try:
             self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
         except ValueError:
@@ -655,9 +670,9 @@ class DiscordClient(Bot):
         self.guild_info.append(guild_info)
 
     def get_guild_info(self, guild_id: int) -> GuildInfo | None:
-        guild_info = [g for g in self.guild_info if g.guild_id == guild_id]
-        if guild_info:
-            return guild_info[0]
+        for guild_info in self.guild_info:
+            if guild_info.guild_id == guild_id:
+                return guild_info
 
         return None
 
@@ -694,7 +709,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO trusted_ids VALUES (?, ?)',
+                    'INSERT OR IGNORE INTO trusted_ids VALUES (?, ?)',
                     (
                         trusted_id,
                         guild_id
@@ -707,7 +722,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM trusted_ids WHERE id = (?) AND guild_id = (?)',
+                    'DELETE FROM trusted_ids WHERE id = (?) AND guild_id = (?)',
                     (
                         trusted_id,
                         guild_id
@@ -720,7 +735,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO achievements VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR IGNORE INTO achievements VALUES (?, ?, ?, ?, ?, ?, ?)',
                     (
                         achievement.id,
                         guild_id,
@@ -738,7 +753,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
+                    'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
                     (
                         achievement.id,
                         guild_id
@@ -755,7 +770,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR IGNORE INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     (
                         account.id,
                         guild_id,
@@ -774,7 +789,7 @@ class DiscordClient(Bot):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM accounts WHERE user_id = (?) AND guild_id = (?)',
+                    'DELETE FROM accounts WHERE user_id = (?) AND guild_id = (?)',
                     (
                         account.id,
                         guild_id
@@ -783,15 +798,15 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def modify_account_in_db(self, account: Account, guild_id: int):
+    async def modify_account_in_db(self, account: Account, guild_id: int) -> None:
         await self.delete_account_from_db(account, guild_id=guild_id)
         await self.add_account_to_db(account, guild_id=guild_id)
 
-    async def add_settings_to_db(self, settings: GuildSettings, guild_id: int):
+    async def add_settings_to_db(self, settings: GuildSettings, guild_id: int) -> None:
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'INSERT OR IGNORE INTO guild_settings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT OR IGNORE INTO guild_settings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     (
                         guild_id,
                         settings.max_scrolls,
@@ -807,11 +822,11 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def delete_settings_from_db(self, settings: GuildSettings, guild_id: int):
+    async def delete_settings_from_db(self, guild_id: int):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(
-                    f'DELETE FROM guild_settings WHERE guild_id = (?)',
+                    'DELETE FROM guild_settings WHERE guild_id = (?)',
                     (
                         guild_id
                     )
@@ -820,7 +835,7 @@ class DiscordClient(Bot):
             await conn.commit()
 
     async def modify_settings_in_db(self, settings: GuildSettings, guild_id: int):
-        await self.delete_settings_from_db(settings, guild_id)
+        await self.delete_settings_from_db(guild_id)
         await self.add_settings_to_db(settings, guild_id)
 
 
@@ -899,9 +914,11 @@ class GuildInfo:
 
     def _get_item_by_id(self, attribute: str, id_:  int) -> type[S] | None:
         items = getattr(self, attribute)
-        item = [i for i in items if i.id == id_]
-        if item:
-            return item[0]
+        for item in items:
+            if item.id == id_:
+                return item
+
+        return None
 
     def get_role(self, id_:  int) -> Role | None:
         return self._get_item_by_id('roles', id_)
@@ -928,303 +945,3 @@ class GuildInfo:
 class SDGException(Exception):
     def __init__(self, *args):
         super().__init__(*args)
-
-
-class MessageTransformer(app_commands.Transformer):
-    async def transform(self, interaction: Interaction, value: str, /) -> Any:
-        try:
-            if value.isnumeric():
-                message = await interaction.channel.fetch_message(int(value))
-                return message
-            else:
-                link_regex = re.compile(
-                    r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
-                    r"/channels/[0-9]{15,19}/(?P<channel_id>"
-                    r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
-                )
-
-                match = re.search(link_regex, value)
-                if match:
-                    channel_id = match.group('channel_id')
-                    message_id = match.group('message_id')
-
-                    channel = (interaction.guild.get_channel_or_thread(channel_id) or
-                               await interaction.guild.fetch_channel(channel_id))
-
-                    message = await channel.fetch_message(message_id)
-                    return message
-        except discord.DiscordException:
-            raise SDGException('Invalid message ID! Message must be in the same channel as this one')
-
-
-class ChoiceTransformer(app_commands.Transformer):
-    async def transform(self, interaction: Interaction, value: Any, /) -> Any:
-        return self.get_value(interaction, value)
-
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        ...
-
-    def get_value(self, interaction: Interaction, value: Any) -> Any:
-        ...
-
-    async def autocomplete(
-            self, interaction: Interaction, value: int | float | str, /
-    ) -> list[Choice[int | float | str]]:
-        choices = self.get_choices(interaction)
-        if not value:
-            return choices[:25]
-
-        choices_dict = {c.value: c.name for c in choices}
-        matches = process.extract(str(value), choices_dict, limit=25)
-        choice_matches = {m[2]: m[0] for m in matches}
-        choices = [Choice(name=v, value=k) for k, v in choice_matches.items()]
-        return choices
-
-
-class FactionTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        choice_list = []
-        for faction in guild_info.factions:
-            choice_list.append(app_commands.Choice(name=faction.name, value=str(faction.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> Faction:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        faction = guild_info.get_faction(int(value))
-        return faction
-
-
-class SubalignmentTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        choice_list = []
-        for subalignment in guild_info.subalignments:
-            choice_list.append(app_commands.Choice(name=subalignment.name, value=str(subalignment.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> Subalignment:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        subalignment = guild_info.get_subalignment(int(value))
-        return subalignment
-
-
-class InfoCategoryTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        choice_list = []
-        for information_category in guild_info.info_categories:
-            choice_list.append(app_commands.Choice(name=information_category.name, value=str(information_category.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> InfoCategory:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        info_category = guild_info.get_info_category(int(value))
-        return info_category
-
-
-class InfoTagTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-
-        info_cat_id = interaction.data['options'][0]['options'][0]['value']
-
-        if not info_cat_id or not info_cat_id.isnumeric():
-            return [app_commands.Choice(name='Select valid info category first!', value='0')]
-
-        info_cat_id = int(info_cat_id)
-
-        choice_list = []
-        for info_tag in guild_info.info_tags:
-            if info_tag.info_category.id == info_cat_id:
-                choice_list.append(app_commands.Choice(name=info_tag.name,value=str(info_tag.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> InfoTag:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        info_tag = guild_info.get_info_tag(int(value))
-
-        return info_tag
-
-
-class RoleTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        choice_list = []
-        for role in guild_info.roles:
-            choice_list.append(app_commands.Choice(name=role.name, value=str(role.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> Role:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        role = guild_info.get_role(int(value))
-        return role
-
-
-class RSFTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        choice_list = []
-        for item in guild_info.roles + guild_info.subalignments + guild_info.factions:
-            choice_list.append(app_commands.Choice(name=item.name, value=str(item.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> Role | Subalignment | Faction:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        role = guild_info.get_role(int(value))
-        subalignment = guild_info.get_subalignment(int(value))
-        faction = guild_info.get_faction(int(value))
-        return role or subalignment or faction
-
-
-class ScrollTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        account = guild_info.get_account(interaction.user.id)
-        if not account:
-            return [app_commands.Choice(name='You don\'t have an account!', value=0)]
-
-        choice_list = []
-        for item in account.blessed_scrolls:
-            name = f'Blessed - {item.name}'
-            choice_list.append(app_commands.Choice(name=name, value=str(item.id)))
-
-        for item in account.cursed_scrolls:
-            name = f'Cursed - {item.name}'
-            choice_list.append(app_commands.Choice(name=name, value=str(item.id)))
-
-        if not choice_list:
-            return [app_commands.Choice(name='You don\'t have any scrolls equipped!', value=0)]
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> Role | Subalignment | Faction:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        account = guild_info.get_account(interaction.user.id)
-        if not account:
-            raise SDGException('You don\'t have an account!')
-
-        all_scrolls = account.blessed_scrolls + account.cursed_scrolls
-        scroll = [s for s in all_scrolls if s.id == int(value)]
-
-        if not scroll:
-            raise SDGException('Invalid scroll!')
-
-        return scroll[0]
-
-
-class ForumTagTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        faction_id = interaction.data['options'][0]['options'][0]['value']
-
-        if not faction_id or not faction_id.isnumeric():
-            return [app_commands.Choice(name='Select faction first!', value='0')]
-
-        faction_id = int(faction_id)
-
-        faction_channel = interaction.guild.get_channel(faction_id)
-
-        choice_list = []
-        for tag in faction_channel.available_tags:
-            if tag.id not in [s.id for s in guild_info.subalignments]:
-                choice_list.append(app_commands.Choice(name=tag.name, value=str(tag.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> discord.ForumTag:
-        faction_id = int(interaction.data['options'][0]['options'][0]['value'])
-        faction_channel = interaction.guild.get_channel(faction_id)
-
-        return faction_channel.get_tag(int(value))
-
-
-class AchievementTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        choice_list = []
-        for achievement in guild_info.achievements:
-            choice_list.append(app_commands.Choice(name=achievement.name, value=str(achievement.id)))
-
-        return choice_list
-
-    def get_value(self, interaction: Interaction, value: Any) -> Achievement:
-        guild_info: GuildInfo = get_guild_info(interaction)
-        achievement = guild_info.get_achievement(int(value))
-        return achievement
-
-
-class PollSelect(discord.ui.Select):
-    def __init__(self, thread: discord.Thread, included_roles, excluded_roles, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.selected_options: dict[int, str] = {}
-        self.included_roles: list[discord.Role] = included_roles
-        self.excluded_roles: list[discord.Role] = excluded_roles
-        self.thread = thread
-
-    async def callback(self, interaction: discord.Interaction):
-        valid_user = not self.included_roles
-
-        if self.included_roles:
-            for role in self.included_roles:
-                if interaction.user in role.members:
-                    valid_user = True
-                    continue
-
-        if self.excluded_roles:
-            for role in self.excluded_roles:
-                if interaction.user in role.members:
-                    await interaction.response.send_message('You are in the excluded roles list!', ephemeral=True)
-                    return
-
-        if not valid_user:
-            await interaction.response.send_message('You aren\'t in the included roles list', ephemeral=True)
-            return
-
-        await self.thread.send(f'{interaction.user} selected {self.values[0]}')
-
-        self.selected_options[interaction.user.id] = self.values[0]
-        await interaction.response.defer()
-
-
-class PollSelectButton(discord.ui.Button):
-    def __init__(self, allowed_user: discord.Member, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.allowed_user = allowed_user
-        self.style = discord.ButtonStyle.danger
-        self.label = 'Stop poll'
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
-        if interaction.user == self.allowed_user:
-            self.disabled = True
-            self.view.children[0].disabled = True
-            thread = self.view.children[0].thread
-            selected_options = self.view.children[0].selected_options
-
-            counts = Counter(selected_options.values())
-            counts_msg = '\n'.join(f'**"{discord.utils.escape_markdown(c[0])}"** got {c[1]} votes!' for c in
-                                   counts.most_common())
-
-            selected_msg = '\n'.join(f'<@{k}> voted {v}' for k, v in selected_options.items())
-
-            full_msg = counts_msg + '\n\n' + selected_msg if selected_options else 'No one voted!'
-
-            embed = create_embed(
-                user=self.allowed_user,
-                title='Poll ended!',
-                description=full_msg
-            )
-
-            await interaction.message.edit(view=self.view)
-            await thread.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-            self.view.stop()
-        else:
-            await interaction.followup.send('Not your button!', ephemeral=True)

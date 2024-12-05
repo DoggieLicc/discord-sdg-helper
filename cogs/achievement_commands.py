@@ -7,9 +7,6 @@ import utils
 
 
 class AchievementMenu(utils.PaginatedMenu):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def format_line(self, item: Achievement) -> str:
         associated_type = item.role or item.subalignment or item.faction
         associated_type_str = associated_type.name if associated_type else 'General'
@@ -27,6 +24,8 @@ class AchievementMenu(utils.PaginatedMenu):
 
 @app_commands.guild_only()
 class AchievementCog(commands.GroupCog, group_name='achievement'):
+    """Commands to create, view, modify, award, and unaward achievements"""
+
     def __init__(self, client):
         self.client: DiscordClient = client
 
@@ -48,7 +47,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
     ):
         """Creates an achievement"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         name = name.strip()
         description = description.strip()
 
@@ -100,7 +99,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
     ):
         """Delete an achievement"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         for account in guild_info.accounts:
             if achievement in account.accomplished_achievements:
@@ -131,7 +130,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
     ):
         """View information on an achievement!"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         amount_achieved = sum(1 for a in guild_info.accounts if achievement in a.accomplished_achievements)
 
         embed = utils.create_embed(
@@ -167,7 +166,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
     ):
         """Lists all achievements that fit the filters"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = None
 
         if sum(1 for a in [role, subalignment, faction] if a is not None) > 1:
@@ -217,7 +216,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
             member: discord.Member
     ):
         """Award an achievement to a member, they must have an account to be able to earn achievements"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         account = guild_info.get_account(member.id)
 
@@ -250,7 +249,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
             member: discord.Member
     ):
         """Removes an achievement from a member"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         account = guild_info.get_account(member.id)
 
@@ -292,7 +291,7 @@ class AchievementCog(commands.GroupCog, group_name='achievement'):
     ):
         """Edit an existing achievement"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         name = new_name.strip() if new_name else achievement.name
         description = new_description.strip() if new_description else achievement.description
         role = new_role or (achievement.role if not any([new_subalignment, new_faction]) else None)

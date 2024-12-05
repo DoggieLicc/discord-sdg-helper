@@ -1,8 +1,7 @@
+import os
 import asyncio
-
 import aiohttp
 import discord
-import os
 
 from dotenv import load_dotenv
 from discord.ext.commands import when_mentioned_or
@@ -33,11 +32,12 @@ DEV_GUILD_ID = os.getenv('DEVELOPMENT_GUILD')
 MY_GUILD = discord.Object(id=int(DEV_GUILD_ID)) if DEV_GUILD_ID else None
 
 DO_FIRST_SYNC = os.getenv('DO_FIRST_SYNC') or 'false'
-DO_FIRST_SYNC = True if DO_FIRST_SYNC.lower().strip() == 'true' else False
+DO_FIRST_SYNC = DO_FIRST_SYNC.lower().strip() == 'true'
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+allowed_mentions = discord.AllowedMentions(users=True, replied_user=True, everyone=False, roles=False)
 
 
 client = DiscordClient(
@@ -45,10 +45,9 @@ client = DiscordClient(
     test_guild=MY_GUILD,
     do_first_sync=DO_FIRST_SYNC,
     command_prefix=when_mentioned_or('sdg.'),
+    allowed_mentions=allowed_mentions,
     help_command=None
 )
-
-client.allowed_mentions = discord.AllowedMentions(users=True, replied_user=True, everyone=False, roles=False)
 
 
 async def main():
@@ -57,7 +56,7 @@ async def main():
         await client.load_extension(cog)
         print(f'Loaded cog {cog}')
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession():
         await client.start(DISCORD_TOKEN)
 
 

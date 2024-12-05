@@ -11,15 +11,17 @@ import utils
 class ErrorCog(commands.Cog):
     def __init__(self, client):
         self.client: utils.DiscordClient = client
+        self._old_tree_error = None
 
-    def cog_load(self):
+    async def cog_load(self):
         tree = self.client.tree
         self._old_tree_error = tree.on_error
-        tree.on_error = self.error_handler # 3rd line <-
+        tree.on_error = self.error_handler
 
-    def cog_unload(self):
-        tree = self.client.tree
-        tree.on_error = self._old_tree_error
+    async def cog_unload(self):
+        if self._old_tree_error:
+            tree = self.client.tree
+            tree.on_error = self._old_tree_error
 
     async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         error_message = None
@@ -29,10 +31,19 @@ class ErrorCog(commands.Cog):
             error = error.original
 
         if isinstance(error, app_commands.TransformerError):
-            error_message = f'Invalid option "{error.value}" for {error.type}'
+            transformer_name = type(error.transformer).__name__.replace('Transformer', '')
+            error_message = f'Invalid option "{error.value}" for {transformer_name}!\n' + \
+                            '(You need to select the autocomplete options provided)'
 
         if isinstance(error, app_commands.CheckFailure):
+            command = interaction.command
             error_message = 'You aren\'t allowed to use that command!'
+
+            if command and command.checks:
+                if command.checks[0] is utils.mod_check:
+                    error_message = 'You need either "Manage Channels" or have Trust (/trust add) to run this command!'
+                elif command.checks[0] is utils.admin_check:
+                    error_message = 'You need Administrator permissions to run this command!'
 
         if isinstance(error, app_commands.MissingPermissions):
             error_message = f'You are missing the following permissions: {error.missing_permissions}'
@@ -69,7 +80,7 @@ class ErrorCog(commands.Cog):
                 owner_embed.add_field(
                     name='Extra Info:',
                     value=f'Guild: {interaction.guild}: {getattr(interaction.guild, "id", "None")}\n'
-                          f'Channel: {interaction.channel.mention}:{interaction.channel.id}', inline=False
+                          f'Channel: {interaction.channel}:{interaction.channel.id}', inline=False
                 )
 
                 await owner.send(embed=owner_embed, files=[file])

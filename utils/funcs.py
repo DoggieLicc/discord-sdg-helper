@@ -1,16 +1,35 @@
 import io
-import os
-import traceback
-import discord
-
-from discord import Embed, User, Member
+import csv
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+import discord
+from discord import Embed, User, Member
+
+if TYPE_CHECKING:
+    import utils
+    OptionalGuildInfo = None | utils.GuildInfo
 
 
-def get_guild_info(interaction: discord.Interaction):
+__all__ = [
+    'get_guild_info',
+    'create_embed',
+    'user_friendly_dt',
+    'str_to_file',
+    'mod_check',
+    'admin_check',
+    'get_interaction_parameter',
+    'get_valid_roles',
+    'generate_gamestate_csv'
+]
+
+
+def get_guild_info(interaction: discord.Interaction) -> 'OptionalGuildInfo':
     for g in interaction.client.guild_info:
         if g.guild_id == interaction.guild_id:
             return g
+
+    return None
 
 
 def create_embed(user: User | Member | None, *, image=None, thumbnail=None, **kwargs) -> Embed:
@@ -28,7 +47,7 @@ def create_embed(user: User | Member | None, *, image=None, thumbnail=None, **kw
     return embed
 
 
-def user_friendly_dt(dt: datetime):
+def user_friendly_dt(dt: datetime) -> str:
     """Format a datetime as "short_date (relative_date)" """
     return discord.utils.format_dt(dt, style='f') + f' ({discord.utils.format_dt(dt, style="R")})'
 
@@ -82,7 +101,7 @@ async def admin_check(interaction: discord.Interaction) -> bool:
     return False
 
 
-def get_interaction_parameter(interaction: discord.Interaction, name: str, default=None):
+def get_interaction_parameter(interaction: discord.Interaction, name: str, default=None) -> str:
     value = None
     try:
         options = interaction.data.get('options')
@@ -98,3 +117,70 @@ def get_interaction_parameter(interaction: discord.Interaction, name: str, defau
 
     return value['value']
 
+
+def get_valid_roles(
+        include_tags: str,
+        exclude_tags: str,
+        guild_info: 'utils.GuildInfo',
+        faction: 'utils.Faction',
+        subalignment: 'utils.Subalignment',
+        guild: discord.Guild
+) -> list['utils.Role']:
+    valid_roles = []
+    split_include_tags = include_tags.split()
+    split_exclude_tags = exclude_tags.split()
+
+    for role in guild_info.roles:
+        if faction and role.faction.id != faction.id:
+            continue
+
+        if subalignment and role.subalignment.id != subalignment.id:
+            continue
+
+        role_thread = guild.get_channel_or_thread(role.id)
+        role_thread_tags = [t.name.lower().strip() for t in role_thread.applied_tags]
+        has_included_tag = not bool(include_tags)
+        has_excluded_tag = False
+
+        for exclude_tag in split_exclude_tags:
+            normalized_e_tag = exclude_tag.lower().strip()
+            if normalized_e_tag in role_thread_tags:
+                has_excluded_tag = True
+
+        for include_tag in split_include_tags:
+            normalized_i_tag = include_tag.lower().strip()
+            if normalized_i_tag in role_thread_tags:
+                has_included_tag = True
+
+        if has_excluded_tag or not has_included_tag:
+            continue
+
+        valid_roles.append(role)
+
+    return valid_roles
+
+
+def generate_gamestate_csv(
+        users: list[discord.User],
+        roles: list['utils.Role'] | None
+) -> discord.File:
+    file_buffer = io.StringIO()
+    with file_buffer as csvfile:
+        fields = ['#', 'Player', 'Role', 'Status Effects']
+        for i in range(5):
+            fields.append(f'D{i}')
+            fields.append(f'N{i}')
+        csvwriter = csv.DictWriter(csvfile, fields)
+        csvwriter.writeheader()
+
+        for i, user in enumerate(users):
+            role = roles[i] if roles else None
+            user_dict = {
+                '#': i+1,
+                'Player': str(user),
+                'Role': role.name if role else None
+            }
+            csvwriter.writerow(user_dict)
+
+        file_buffer.seek(0)
+        return discord.File(file_buffer, 'gamestate.csv')

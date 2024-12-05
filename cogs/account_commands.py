@@ -1,4 +1,7 @@
 import io
+import csv
+import typing
+import dataclasses
 
 import discord
 
@@ -8,19 +11,14 @@ from discord.ext import commands
 import utils
 from utils import SDGException, DiscordClient, Account, Role, Subalignment, Faction, RSFTransformer, ScrollTransformer
 
-import typing
-import csv
-import dataclasses
 
-class DeleteConfirm(discord.ui.View):
+class DeleteConfirm(utils.CustomView):
     def __init__(self, owner: discord.User):
-        super().__init__()
+        super().__init__(owner=owner)
         self.value = None
-        self.owner = owner
-        self.message = None
 
     @discord.ui.button(label='Delete Account', style=discord.ButtonStyle.danger)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button):
         embed = utils.create_embed(
             interaction.user,
             title='Account Deleted',
@@ -31,7 +29,7 @@ class DeleteConfirm(discord.ui.View):
         await self.on_timeout()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.green)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def cancel(self, interaction: discord.Interaction, _: discord.ui.Button):
         embed = utils.create_embed(
             interaction.user,
             title='Deletion cancelled',
@@ -41,33 +39,11 @@ class DeleteConfirm(discord.ui.View):
         self.value = False
         await self.on_timeout()
 
-    async def interaction_check(self, interaction: Interaction, /) -> bool:
-        await interaction.response.defer()
-        self.message = interaction.message
-
-        if interaction.user != self.owner:
-            await interaction.followup.send('You didn\'t use this command!', ephemeral=True)
-            return False
-
-        return True
-
-    async def on_timeout(self) -> None:
-        children = self.children
-        for child in children:
-            child.disabled = True
-        self._children = children
-
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except discord.NotFound:
-                pass
-
-        self.stop()
-
 
 @app_commands.guild_only()
 class AccountCog(commands.GroupCog, group_name='account'):
+    """Commands to create, view, modify, and delete accounts"""
+
     scroll_group = app_commands.Group(name='scroll', description='Scroll commands')
     game_group = app_commands.Group(name='game', description='Game commands')
 
@@ -92,7 +68,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     async def create_account(self, interaction: Interaction, member: discord.Member | None = None):
         """Create an account for either yourself or another member"""
 
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if member and not await utils.mod_check(interaction):
             raise SDGException('You aren\'t allowed to create accounts for other members.')
@@ -105,7 +81,11 @@ class AccountCog(commands.GroupCog, group_name='account'):
         if guild_info.get_account(member.id):
             raise SDGException(f'Member {member.mention} already has an account!')
 
-        if member == interaction.user and not await utils.mod_check(interaction) and not guild_info.guild_settings.accounts_creatable:
+        if (
+                member == interaction.user and
+                not await utils.mod_check(interaction) and
+                not guild_info.guild_settings.accounts_creatable
+        ):
             raise SDGException('Accounts are not currently creatable by normal users.')
 
         account = Account(
@@ -135,7 +115,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.check(utils.admin_check)
     async def mass_create_accounts(self, interaction: Interaction):
         """Create accounts for ALL server members"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         await interaction.response.defer()
 
@@ -174,7 +154,9 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
     @app_commands.command(name='view')
     @app_commands.describe(member='The member to view the account of. By default this will be your account')
-    @app_commands.describe(ephemeral='Whether to only show the response to you. Scroll information is shown if True. Defaults to False')
+    @app_commands.describe(
+        ephemeral='Whether to only show the response to you. Scroll information is shown if True. Defaults to False'
+    )
     async def view_account(
             self,
             interaction: Interaction,
@@ -184,7 +166,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
         """View account info"""
 
         member = member or interaction.user
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         account = guild_info.get_account(member.id)
 
@@ -228,7 +210,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.check(utils.admin_check)
     async def delete_account(self, interaction: Interaction, member: discord.User):
         """Delete an user's account. This action is not reversible!"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = guild_info.get_account(member.id)
 
         if not account:
@@ -268,7 +250,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Export accounts as a .csv file. When using a spreadsheet program use "Format quoted field as text"."""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if not guild_info.accounts:
             raise SDGException('This server has no accounts!')
@@ -317,7 +299,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mode: typing.Literal['SET', 'ADD']
     ):
         """Import a csv file of accounts"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         all_rsf = guild_info.roles + guild_info.subalignments + guild_info.factions
 
         await interaction.response.defer()
@@ -390,7 +372,8 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
                 new_cursed_scrolls = [s for s in cursed_scrolls if s not in existing_account.cursed_scrolls]
                 new_cursed_scrolls += existing_account.cursed_scrolls
-                new_cursed_scrolls = [s for s in new_cursed_scrolls if isinstance(s, Role) and s not in new_blessed_scrolls]
+                new_cursed_scrolls = [s for s in new_cursed_scrolls if isinstance(s, Role) and
+                                      s not in new_blessed_scrolls]
 
                 new_achievements = [a for a in existing_account.accomplished_achievements if a not in achievements]
                 new_achievements += existing_account.accomplished_achievements
@@ -436,7 +419,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
     @app_commands.describe(member='The member to view scrolls of. You need to be trusted to view other\'s scrolls')
     async def scroll_view(self, interaction: Interaction, member: discord.User | None = None):
         """View your own or someone else's equipped scrolls"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if interaction.user != member and not await utils.mod_check(interaction):
             raise SDGException('You don\'t have permission to view other account\'s scrolls.')
@@ -476,7 +459,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             scroll_type: typing.Literal['Blessed', 'Cursed']
     ):
         """Add a scroll to your account"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = guild_info.get_account(interaction.user.id)
         settings = guild_info.guild_settings
 
@@ -490,16 +473,16 @@ class AccountCog(commands.GroupCog, group_name='account'):
             raise SDGException(f'The scroll "{role_subalignment_faction.name}" is already equipped in cursed scrolls')
 
         if not settings.roles_are_scrollable and isinstance(role_subalignment_faction, Role):
-            raise SDGException(f'Role scrolling is disabled in this server')
+            raise SDGException('Role scrolling is disabled in this server')
 
         if not settings.subalignments_are_scrollable and isinstance(role_subalignment_faction, Subalignment):
-            raise SDGException(f'Subalignment scrolling is disabled in this server')
+            raise SDGException('Subalignment scrolling is disabled in this server')
 
         if not settings.factions_are_scrollable and isinstance(role_subalignment_faction, Faction):
-            raise SDGException(f'Faction scrolling is disabled in this server')
+            raise SDGException('Faction scrolling is disabled in this server')
 
         if scroll_type == 'Cursed' and not isinstance(role_subalignment_faction, Role):
-            raise SDGException(f'Can only cursed scroll for roles')
+            raise SDGException('Can only cursed scroll for roles')
 
         if scroll_type == 'Blessed':
             if len(account.blessed_scrolls) + 1 > settings.max_scrolls:
@@ -529,7 +512,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             scroll: app_commands.Transform[Role | Subalignment | Faction, ScrollTransformer],
     ):
         """Removes a scroll from your account"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
         account = guild_info.get_account(interaction.user.id)
         scroll_type = ''
 
@@ -565,7 +548,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Add a game result to a player or multiple players"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if member is None and mentions_message is None:
             raise SDGException('You need to specify either member or mentions_message')
@@ -615,7 +598,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Sets the amount of games to a player or multiple players"""
-        guild_info: utils.GuildInfo = utils.get_guild_info(interaction)
+        guild_info = utils.get_guild_info(interaction)
 
         if member is None and mentions_message is None:
             raise SDGException('You need to specify either member or mentions_message')
