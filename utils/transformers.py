@@ -5,6 +5,7 @@ from abc import abstractmethod
 import discord
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
+from discord.ext.commands import MessageConverter
 from thefuzz import process as thefuzz_process
 
 from utils.classes import *
@@ -23,35 +24,24 @@ __all__ = [
 ]
 
 
+class FakeContext(discord.Object):
+    def __init__(self, **kwargs):
+        for name, value in kwargs.items():
+            setattr(self, name, value)
+        super().__init__(id=0)
+
+
 class MessageTransformer(app_commands.Transformer):
     # pylint: disable=abstract-method
     async def transform(self, interaction: Interaction, value: str, /) -> Any:
-        if value.isnumeric():
+        if value.isnumeric():  # MessageConverter does not fetch message for an id, so we handle it here
             state_msg = interaction.client._connection._get_message(int(value))
             message = state_msg or await interaction.channel.fetch_message(int(value))
             return message
 
-        link_regex = re.compile(
-            r"https?://(?:(?:ptb|canary)\.)?discord(?:app)?\.com"
-            r"/channels/[0-9]{15,19}/(?P<channel_id>"
-            r"[0-9]{15,19})/(?P<message_id>[0-9]{15,19})/?"
-        )
-
-        match = re.search(link_regex, value)
-        if match:
-            channel_id = int(match.group('channel_id'))
-            message_id = int(match.group('message_id'))
-
-            state_msg = interaction.client._connection._get_message(message_id)
-
-            if state_msg:
-                return state_msg
-
-            guild = interaction.guild
-            channel = guild.get_channel_or_thread(channel_id) or await guild.fetch_channel(channel_id)
-
-            message = await channel.fetch_message(message_id)
-            return message
+        fake_ctx = FakeContext(bot=interaction.client, guild=interaction.guild)
+        message_converter = MessageConverter()
+        return await message_converter.convert(fake_ctx, value)  # type: ignore
 
 
 class ChoiceTransformer(app_commands.Transformer):
