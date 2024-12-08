@@ -16,7 +16,7 @@ import utils
 class Player:
     user: discord.User
     role: Role
-    weight: tuple[list[Role], list[int]]
+    weight: tuple[list[Role], list[int]] | None
 
 
 class RoleFactionMenu(PaginatedMenu):
@@ -135,8 +135,13 @@ class MiscCog(commands.Cog):
             players: list[discord.User | discord.Member],
             roles: list[Role],
             guild_info: GuildInfo,
-            use_scrolls: bool = True
+            use_scrolls: bool = True,
+            no_randomize: bool = False
     ) -> list[Player]:
+        if no_randomize:
+            assigned_players = [Player(player, role, None) for player, role in zip(players, roles)]
+            return assigned_players
+
         random.shuffle(players)
         random.shuffle(roles)
 
@@ -403,6 +408,9 @@ class MiscCog(commands.Cog):
     @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
     @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
     @app_commands.describe(use_account_scrolls='Whether to use account scrolls. Defaults to True')
+    @app_commands.describe(
+        no_randomize='Don\'t distribute the roles randomly, instead it assigns by order. Defaults to False'
+    )
     @app_commands.describe(details='Display additional details about role distribution. Defaults to False')
     @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to True')
     @app_commands.check(mod_check)
@@ -412,6 +420,7 @@ class MiscCog(commands.Cog):
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
             roles_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
             use_account_scrolls: bool = True,
+            no_randomize: bool = False,
             details: bool = False,
             ephemeral: bool = True,
     ):
@@ -451,7 +460,8 @@ class MiscCog(commands.Cog):
             message_mentions.copy(),
             generated_roles,
             guild_info,
-            use_account_scrolls
+            use_account_scrolls,
+            no_randomize
         )
 
         sorted_players = []
@@ -475,7 +485,7 @@ class MiscCog(commands.Cog):
 
         file = None
 
-        if details:
+        if details and not no_randomize:
             details_str = f'ROLE SCROLL MULTIPLIER: {settings.role_scroll_multiplier}\n' \
                           f'SUBALIGNMENT SCROLL MULTIPLIER: {settings.subalignment_scroll_multiplier}\n' \
                           f'FACTION SCROLL MULTIPLIER: {settings.faction_scroll_multiplier}\n\n' \
@@ -532,7 +542,7 @@ class MiscCog(commands.Cog):
     @app_commands.command(name='generatethreads')
     @app_commands.describe(mentions_message='Message ID or link to get mentions from. (Use google to search how)')
     @app_commands.describe(
-        additional_message='Additonal message to send to each thread. Useful for mentioning a role etc.'
+        additional_message='Additional message to send to each thread. Useful for mentioning a role etc.'
     )
     @app_commands.describe(thread_name='The name to give the threads, by default it will be "Mod Thread"')
     @app_commands.describe(invitable='Whether to allow non-moderators to add others to their thread. Defaults to False')
