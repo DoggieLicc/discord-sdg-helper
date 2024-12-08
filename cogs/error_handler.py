@@ -31,9 +31,14 @@ class ErrorCog(commands.Cog):
             error = error.original
 
         if isinstance(error, app_commands.TransformerError):
-            transformer_name = type(error.transformer).__name__.replace('Transformer', '')
-            error_message = f'Invalid option "{error.value}" for {transformer_name}!\n' + \
-                            '(You need to select the autocomplete options provided)'
+            transformer_class = type(error.transformer)
+            transformer_name = transformer_class.__name__.replace('Transformer', '')
+            error_message = f'Invalid option "{error.value}" for {transformer_name}!'
+            if transformer_class.autocomplete is utils.ChoiceTransformer.autocomplete:
+                if error.value == '0':
+                    error_message += '\n(Select options in order, as the autocomplete changes based on your options)'
+                else:
+                    error_message += '\n(You need to select the autocomplete options provided)'
 
         if isinstance(error, app_commands.CheckFailure):
             command = interaction.command
