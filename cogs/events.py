@@ -9,6 +9,7 @@ from utils import GuildInfo
 
 
 class EventsCog(commands.Cog):
+    # pylint: disable=invalid-overridden-method
     def __init__(self, client):
         self.client: utils.DiscordClient = client
         self.last_activity = None

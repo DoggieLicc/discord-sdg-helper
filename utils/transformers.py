@@ -1,6 +1,4 @@
-import re
 from typing import Any
-from abc import abstractmethod
 
 import discord
 from discord import app_commands, Interaction
@@ -12,6 +10,7 @@ from thefuzz import fuzz
 from utils.classes import *
 
 __all__ = [
+    'ChoiceTransformer',
     'MessageTransformer',
     'FactionTransformer',
     'SubalignmentTransformer',
@@ -49,13 +48,11 @@ class ChoiceTransformer(app_commands.Transformer):
     async def transform(self, interaction: Interaction, value: Any, /) -> Any:
         return self.get_value(interaction, value)
 
-    @abstractmethod
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
-        ...
+        raise NotImplementedError('Derived classes need to implement this method')
 
-    @abstractmethod
     def get_value(self, interaction: Interaction, value: Any) -> Any:
-        ...
+        raise NotImplementedError('Derived classes need to implement this method')
 
     async def autocomplete(
             self, interaction: Interaction, value: int | float | str, /
@@ -83,6 +80,8 @@ class FactionTransformer(ChoiceTransformer):
     def get_value(self, interaction: Interaction, value: Any) -> Faction:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         faction = guild_info.get_faction(int(value))
+        if faction is None:
+            raise SDGException('Invalid value')
         return faction
 
 
@@ -98,6 +97,8 @@ class SubalignmentTransformer(ChoiceTransformer):
     def get_value(self, interaction: Interaction, value: Any) -> Subalignment:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         subalignment = guild_info.get_subalignment(int(value))
+        if subalignment is None:
+            raise SDGException('Invalid value')
         return subalignment
 
 
@@ -113,6 +114,8 @@ class InfoCategoryTransformer(ChoiceTransformer):
     def get_value(self, interaction: Interaction, value: Any) -> InfoCategory:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         info_category = guild_info.get_info_category(int(value))
+        if info_category is None:
+            raise SDGException('Invalid value')
         return info_category
 
 
@@ -137,7 +140,8 @@ class InfoTagTransformer(ChoiceTransformer):
     def get_value(self, interaction: Interaction, value: Any) -> InfoTag:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         info_tag = guild_info.get_info_tag(int(value))
-
+        if info_tag is None:
+            raise SDGException('Invalid value')
         return info_tag
 
 
@@ -153,6 +157,8 @@ class RoleTransformer(ChoiceTransformer):
     def get_value(self, interaction: Interaction, value: Any) -> Role:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         role = guild_info.get_role(int(value))
+        if role is None:
+            raise SDGException('Invalid value')
         return role
 
 
@@ -176,7 +182,11 @@ class RSFTransformer(ChoiceTransformer):
         role = guild_info.get_role(int(value))
         subalignment = guild_info.get_subalignment(int(value))
         faction = guild_info.get_faction(int(value))
-        return role or subalignment or faction
+        rsf = role or subalignment or faction
+        if rsf is None:
+            raise SDGException('Invalid value')
+
+        return rsf
 
 
 class ScrollTransformer(ChoiceTransformer):
@@ -238,7 +248,15 @@ class ForumTagTransformer(ChoiceTransformer):
         faction_id = int(interaction.data['options'][0]['options'][0]['value'])
         faction_channel = interaction.guild.get_channel(faction_id)
 
-        return faction_channel.get_tag(int(value))
+        if faction_channel is None:
+            raise SDGException('Invalid value')
+
+        forum_tag = faction_channel.get_tag(int(value))
+
+        if forum_tag is None:
+            raise SDGException('Invalid value')
+
+        return forum_tag
 
 
 class AchievementTransformer(ChoiceTransformer):
@@ -253,4 +271,8 @@ class AchievementTransformer(ChoiceTransformer):
     def get_value(self, interaction: Interaction, value: Any) -> Achievement:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         achievement = guild_info.get_achievement(int(value))
+
+        if achievement is None:
+            raise SDGException('Invalid value')
+
         return achievement
