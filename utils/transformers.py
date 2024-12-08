@@ -7,6 +7,7 @@ from discord import app_commands, Interaction
 from discord.app_commands import Choice
 from discord.ext.commands import MessageConverter
 from thefuzz import process as thefuzz_process
+from thefuzz import fuzz
 
 from utils.classes import *
 
@@ -64,7 +65,7 @@ class ChoiceTransformer(app_commands.Transformer):
             return choices[:25]
 
         choices_dict = {c.value: c.name for c in choices}
-        matches = thefuzz_process.extract(str(value), choices_dict, limit=25)
+        matches = thefuzz_process.extract(str(value), choices_dict, limit=25, scorer=fuzz.UQRatio)
         choice_matches = {m[2]: m[0] for m in matches}
         choices = [Choice(name=v, value=k) for k, v in choice_matches.items()]
         return choices
