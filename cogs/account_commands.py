@@ -242,11 +242,13 @@ class AccountCog(commands.GroupCog, group_name='account'):
             pass
 
     @app_commands.command(name='export')
+    @app_commands.describe(blank_data='Make the exported data blank. Useful if you will reimport later with ADD')
     @app_commands.describe(mentions_message='If specified, will only export accounts of mentioned players')
     @app_commands.check(utils.admin_check)
     async def export_accounts(
             self,
             interaction: Interaction,
+            blank_data: bool = False,
             mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer] = None
     ):
         """Export accounts as a .csv file. When using a spreadsheet program use "Format quoted field as text"."""
@@ -281,6 +283,14 @@ class AccountCog(commands.GroupCog, group_name='account'):
                 account_dict = dataclasses.asdict(account)
                 account_dict = self.csv_dict(account_dict)
                 account_dict['username'] = username
+                if blank_data:
+                    account_dict['num_wins'] = None
+                    account_dict['num_loses'] = None
+                    account_dict['num_draws'] = None
+                    account_dict['blessed_scrolls'] = None
+                    account_dict['cursed_scrolls'] = None
+                    account_dict['accomplished_achievements'] = None
+
                 csvwriter.writerow(account_dict)
 
             file_buffer.seek(0)
