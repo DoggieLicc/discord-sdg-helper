@@ -257,11 +257,16 @@ class AccountCog(commands.GroupCog, group_name='account'):
         if not guild_info.accounts:
             raise SDGException('This server has no accounts!')
 
-        valid_accounts = guild_info.accounts
+        valid_accounts = []
 
         if mentions_message:
-            mention_ids = [m.id for m in mentions_message.mentions]
-            valid_accounts = [a for a in guild_info.accounts if a.id in mention_ids]
+            raw_mentions = mentions_message.raw_mentions
+            for r_mention in raw_mentions:
+                account = guild_info.get_account(r_mention)
+                if account:
+                    valid_accounts.append(account)
+        else:
+            valid_accounts = guild_info.accounts.copy()
 
         if not valid_accounts:
             raise SDGException('No mentioned users have accounts!')
