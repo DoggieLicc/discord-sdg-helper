@@ -197,7 +197,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
                         f'**Wins:** {account.num_wins}\n'
                         f'**Losses:** {account.num_loses}\n'
                         f'**Draws:** {account.num_draws}\n'
-                        f'**W/L:** {wl_ratio}\n\n'
+                        f'**W/L:** {wl_ratio:.2f}\n\n'
                         f'**Accomplished Achievements:** {len(account.accomplished_achievements)}\n'
                         f'**Blessed Scrolls:** {blessed_scrolls_str}\n'
                         f'**Cursed Scrolls:** {cursed_scrolls_str}'

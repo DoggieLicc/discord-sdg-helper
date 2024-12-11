@@ -76,7 +76,7 @@ class WLRatioLeaderboardMenu(LeaderboardMenu):
         else:
             ratio = item.num_wins / item.num_loses
 
-        return f'{ratio} W/L'
+        return f'{ratio:.2f} W/L'
 
 
 class AchievementLeaderboardMenu(LeaderboardMenu):
