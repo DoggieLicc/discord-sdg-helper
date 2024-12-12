@@ -280,12 +280,22 @@ class MiscCog(commands.Cog):
         if not poll_options:
             raise SDGException('No poll options!')
 
-        private_thread = await interaction.channel.create_thread(name=f'Poll results: {poll_question}', invitable=False)
+        if len(poll_options) > 25:
+            raise SDGException('You can only have up to 25 options!')
+
+        fake_message = utils.FakeMessage(interaction.guild, poll_question)
+        cleaned_question = fake_message.clean_content
+
+        private_thread = await interaction.channel.create_thread(
+            name=f'Poll results: {cleaned_question}',
+            invitable=False
+        )
+
         whitelist_text = ' '.join(w.mention for w in whitelist) if whitelist else 'None'
         blacklist_text = ' '.join(b.mention for b in blacklist) if blacklist else 'None'
         private_thread_embed = utils.create_embed(
             None,
-            title=f'"{poll_question}"',
+            title=f'"{cleaned_question}"',
             description='Live voting updates will be posted in this thread!\n\n'
                         f'**Whitelist:** {whitelist_text}\n'
                         f'**Blacklist:** {blacklist_text}'
@@ -297,7 +307,7 @@ class MiscCog(commands.Cog):
             thread=private_thread,
             whitelist=whitelist,
             blacklist=blacklist,
-            placeholder=poll_question
+            placeholder=cleaned_question
         )
         button = utils.PollSelectButton(allowed_user=interaction.user, custom_id=f'button:stop:{private_thread.id}')
 
@@ -305,9 +315,14 @@ class MiscCog(commands.Cog):
         view.add_item(button)
 
         for option in poll_options[:25]:
-            select.add_option(label=option[:100])
+            fake_option_message = utils.FakeMessage(interaction.guild, option)
+            select.add_option(label=fake_option_message.clean_content[:100])
 
-        await interaction.response.send_message(poll_question, view=view)
+        await interaction.response.send_message(
+            poll_question,
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none()
+        )
 
     @app_commands.guild_only()
     @app_commands.command(name='listroles')
@@ -589,6 +604,9 @@ class MiscCog(commands.Cog):
             raise SDGException('Can\'t use in non-text channels!')
 
         await interaction.response.defer(ephemeral=True)
+
+        fake_message = utils.FakeMessage(interaction.guild, thread_name)
+        thread_name = fake_message.clean_content
 
         distributed_players = []
         distributed_users = None

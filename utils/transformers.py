@@ -1,15 +1,18 @@
 from typing import Any
 
 import discord
-from discord import app_commands, Interaction
+from discord import app_commands, Interaction, Message
 from discord.app_commands import Choice
 from discord.ext.commands import MessageConverter, MemberConverter, RoleConverter, BadArgument, CommandError
+from discord.utils import cached_property
 from thefuzz import process as thefuzz_process
 from thefuzz import fuzz
 
 from utils.classes import *
 
 __all__ = [
+    'FakeContext',
+    'FakeMessage',
     'ChoiceTransformer',
     'MessageTransformer',
     'GreedyMemberRoleTransformer',
@@ -30,6 +33,55 @@ class FakeContext(discord.Object):
         for name, value in kwargs.items():
             setattr(self, name, value)
         super().__init__(id=0)
+
+
+class FakeMessage(discord.Object):
+    # pylint: disable=no-member
+    def __init__(self, guild: discord.Guild | None, content: str):
+        self.content = content
+        self.guild = guild
+        super().__init__(id=0)
+
+    @cached_property
+    def raw_mentions(self) -> list[int]:
+        return Message.raw_mentions.function(self)
+
+    @cached_property
+    def raw_channel_mentions(self) -> list[int]:
+        return Message.raw_channel_mentions.function(self)
+
+    @cached_property
+    def raw_role_mentions(self) -> list[int]:
+        return Message.raw_role_mentions.function(self)
+
+    @cached_property
+    def channel_mentions(self) -> list[discord.abc.GuildChannel | discord.Thread]:
+        return Message.channel_mentions.function(self)
+
+    @cached_property
+    def mentions(self) -> list[discord.Member]:
+        mentions = []
+        if self.guild:
+            for mention in self.raw_mentions:
+                member = self.guild.get_member(mention)
+                if member:
+                    mentions.append(member)
+        return mentions
+
+    @cached_property
+    def role_mentions(self) -> list[discord.Role]:
+        role_mentions = []
+        if self.guild:
+            for mention in self.raw_role_mentions:
+                role = self.guild.get_role(mention)
+                if role:
+                    role_mentions.append(role)
+
+        return role_mentions
+
+    @cached_property
+    def clean_content(self) -> str:
+        return Message.clean_content.function(self)
 
 
 class MessageTransformer(app_commands.Transformer):
