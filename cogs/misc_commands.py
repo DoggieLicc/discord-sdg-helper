@@ -5,8 +5,9 @@ from abc import abstractmethod
 
 import discord
 
-from discord import app_commands
+from discord import app_commands, Member
 from discord.ext import commands
+from discord.app_commands import Transform
 from utils import GuildInfo, Faction, Role, mod_check, get_guild_info, SDGException, Subalignment, PaginatedMenu
 
 import utils
@@ -168,7 +169,7 @@ class MiscCog(commands.Cog):
     async def get_role(
             self,
             interaction: discord.Interaction,
-            role: app_commands.Transform[Role, utils.RoleTransformer],
+            role: Transform[Role, utils.RoleTransformer],
             ephemeral: bool = False
     ):
         """Get info on a role"""
@@ -260,32 +261,18 @@ class MiscCog(commands.Cog):
     @app_commands.command(name='anonpoll')
     @app_commands.describe(poll_question='The question to ask')
     @app_commands.describe(poll_options='The comma-seperated list of options, defaults to "INNOCENT, GUILTY, ABSTAIN"')
-    @app_commands.describe(include_role_1='If included roles are set, only members with those roles can vote')
-    @app_commands.describe(exclude_role_1='Players with excluded roles can\'t vote')
+    @app_commands.describe(whitelist='If set, only the users and roles set here will be allowed to vote')
+    @app_commands.describe(blacklist='If set, the users and roles set here will not be allowed to vote')
     @app_commands.guild_only()
     async def start_anonpoll(
             self,
             interaction: discord.Interaction,
             poll_question: str,
             poll_options: str = 'INNOCENT, GUILTY, ABSTAIN',
-            include_role_1: discord.Role | None = None,
-            include_role_2: discord.Role | None = None,
-            include_role_3: discord.Role | None = None,
-            exclude_role_1: discord.Role | None = None,
-            exclude_role_2: discord.Role | None = None,
-            exclude_role_3: discord.Role | None = None
+            whitelist: Transform[list[discord.Role | Member], utils.GreedyMemberRoleTransformer] = None,
+            blacklist: Transform[list[discord.Role | Member], utils.GreedyMemberRoleTransformer] = None
     ):
         """Starts a hidden poll that sends votes to a private thread"""
-
-        include_role_1 = [include_role_1] if include_role_1 else []
-        include_role_2 = [include_role_2] if include_role_2 else []
-        include_role_3 = [include_role_3] if include_role_3 else []
-        exclude_role_1 = [exclude_role_1] if exclude_role_1 else []
-        exclude_role_2 = [exclude_role_2] if exclude_role_2 else []
-        exclude_role_3 = [exclude_role_3] if exclude_role_3 else []
-
-        included_roles = include_role_1 + include_role_2 + include_role_3
-        excluded_roles = exclude_role_1 + exclude_role_2 + exclude_role_3
 
         poll_options = poll_options.split(',')
         poll_options = [o.strip() for o in poll_options]
@@ -294,13 +281,22 @@ class MiscCog(commands.Cog):
             raise SDGException('No poll options!')
 
         private_thread = await interaction.channel.create_thread(name=f'Poll results: {poll_question}', invitable=False)
-        await private_thread.send(interaction.user.mention)
+        whitelist_text = ' '.join(w.mention for w in whitelist) if whitelist else 'None'
+        blacklist_text = ' '.join(b.mention for b in blacklist) if blacklist else 'None'
+        private_thread_embed = utils.create_embed(
+            None,
+            title=f'"{poll_question}"',
+            description='Live voting updates will be posted in this thread!\n\n'
+                        f'**Whitelist:** {whitelist_text}\n'
+                        f'**Blacklist:** {blacklist_text}'
+        )
+        await private_thread.send(interaction.user.mention, embed=private_thread_embed)
 
         view = discord.ui.View(timeout=None)
         select = utils.PollSelect(
             thread=private_thread,
-            included_roles=included_roles,
-            excluded_roles=excluded_roles,
+            whitelist=whitelist,
+            blacklist=blacklist,
             placeholder=poll_question
         )
         button = utils.PollSelectButton(allowed_user=interaction.user, custom_id=f'button:stop:{private_thread.id}')
@@ -322,8 +318,8 @@ class MiscCog(commands.Cog):
     async def list_roles(
             self,
             interaction: discord.Interaction,
-            faction: app_commands.Transform[Faction, utils.FactionTransformer] | None = None,
-            subalignment: app_commands.Transform[Subalignment, utils.SubalignmentTransformer] | None = None,
+            faction: Transform[Faction, utils.FactionTransformer] | None = None,
+            subalignment: Transform[Subalignment, utils.SubalignmentTransformer] | None = None,
             include_tags: str | None = '',
             exclude_tags: str | None = '',
             ephemeral: bool = False
@@ -417,8 +413,8 @@ class MiscCog(commands.Cog):
     async def assign_roles_cmd(
             self,
             interaction: discord.Interaction,
-            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
-            roles_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
+            mentions_message: Transform[discord.Message, utils.MessageTransformer],
+            roles_message: Transform[discord.Message, utils.MessageTransformer],
             use_account_scrolls: bool = True,
             no_randomize: bool = False,
             details: bool = False,
@@ -553,11 +549,11 @@ class MiscCog(commands.Cog):
     async def generate_mod_threads(
             self,
             interaction: discord.Interaction,
-            mentions_message: app_commands.Transform[discord.Message, utils.MessageTransformer],
+            mentions_message: Transform[discord.Message, utils.MessageTransformer],
             additional_message: str = '',
             thread_name: str = 'Mod Thread',
             invitable: bool = False,
-            roles_message: app_commands.Transform[discord.Message, utils.MessageTransformer] | None = None,
+            roles_message: Transform[discord.Message, utils.MessageTransformer] | None = None,
             use_account_scrolls: bool = True
     ):
         """Generate mod threads using mentions from the provided message"""

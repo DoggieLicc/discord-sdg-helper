@@ -3,7 +3,7 @@ from typing import Any
 import discord
 from discord import app_commands, Interaction
 from discord.app_commands import Choice
-from discord.ext.commands import MessageConverter
+from discord.ext.commands import MessageConverter, MemberConverter, RoleConverter, BadArgument, CommandError
 from thefuzz import process as thefuzz_process
 from thefuzz import fuzz
 
@@ -12,6 +12,7 @@ from utils.classes import *
 __all__ = [
     'ChoiceTransformer',
     'MessageTransformer',
+    'GreedyMemberRoleTransformer',
     'FactionTransformer',
     'SubalignmentTransformer',
     'RoleTransformer',
@@ -43,6 +44,34 @@ class MessageTransformer(app_commands.Transformer):
         message_converter = MessageConverter()
         return await message_converter.convert(fake_ctx, value)  # type: ignore
 
+
+class GreedyMemberRoleTransformer(app_commands.Transformer):
+    # pylint: disable=abstract-method
+    async def transform(self, interaction: Interaction, value: str, /) -> list[discord.Role | discord.Member]:
+        cleaned_value = value.replace('><', '> <').strip()
+        arguments = cleaned_value.split()
+
+        fake_ctx = FakeContext(bot=interaction.client, guild=interaction.guild)
+        member_converter = MemberConverter()
+        role_converter = RoleConverter()
+        items = []
+        for argument in arguments:
+            converted = None
+            try:
+                converted = await member_converter.convert(fake_ctx, argument)
+            except (CommandError, BadArgument):
+                try:
+                    converted = await role_converter.convert(fake_ctx, argument)
+                except (CommandError, BadArgument):
+                    pass
+
+            if converted is not None and converted not in items:
+                items.append(converted)
+
+        if not items:
+            raise SDGException()
+
+        return items
 
 class ChoiceTransformer(app_commands.Transformer):
     async def transform(self, interaction: Interaction, value: Any, /) -> Any:

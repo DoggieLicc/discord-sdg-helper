@@ -117,31 +117,40 @@ class PaginatedMenu(CustomView):
 
 
 class PollSelect(discord.ui.Select):
-    def __init__(self, thread: discord.Thread, included_roles, excluded_roles, *args, **kwargs):
+    def __init__(self, thread: discord.Thread, whitelist, blacklist, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.selected_options: dict[int, str] = {}
-        self.included_roles: list[discord.Role] = included_roles
-        self.excluded_roles: list[discord.Role] = excluded_roles
+
+        self.whitelist: list[discord.Role | discord.Member] = whitelist
+        self.blacklist: list[discord.Role | discord.Member] = blacklist
         self.thread = thread
 
     async def callback(self, interaction: discord.Interaction):
-        valid_user = not self.included_roles
+        valid_user = not self.whitelist
 
-        if self.included_roles:
-            for role in self.included_roles:
-                if interaction.user in role.members:
+        if self.whitelist:
+            for mention in self.whitelist:
+                if isinstance(mention, discord.Role):
+                    if interaction.user in mention.members:
+                        valid_user = True
+                        continue
+                if interaction.user == mention:
                     valid_user = True
                     continue
 
-        if self.excluded_roles:
-            for role in self.excluded_roles:
-                if interaction.user in role.members:
-                    await interaction.response.send_message('You are in the excluded roles list!', ephemeral=True)
-                    return None
+        if self.blacklist:
+            for mention in self.blacklist:
+                if isinstance(mention, discord.Role):
+                    if interaction.user in mention.members:
+                        await interaction.response.send_message('You are in the excluded roles list!', ephemeral=True)
+                        return
+                if interaction.user == mention:
+                    await interaction.response.send_message('You are in the excluded members list!', ephemeral=True)
+                    return
 
         if not valid_user:
-            await interaction.response.send_message('You aren\'t in the included roles list', ephemeral=True)
-            return None
+            await interaction.response.send_message('You aren\'t in the whitelist!', ephemeral=True)
+            return
 
         await self.thread.send(f'{interaction.user} selected {self.values[0]}')
 
@@ -166,6 +175,11 @@ class PollSelectButton(discord.ui.Button):
             selected_options = self.view.children[0].selected_options
 
             counts = Counter(selected_options.values())
+
+            for option in self.view.children[0].options:
+                if option.value not in counts.keys():
+                    counts[option.value] = 0
+
             counts_msg = '\n'.join(f'**"{discord.utils.escape_markdown(c[0])}"** got {c[1]} votes!' for c in
                                    counts.most_common())
 
