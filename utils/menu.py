@@ -7,7 +7,7 @@ from discord import Interaction
 from discord.ui import View, Button, Item
 from discord.ext.commands import Paginator
 
-from utils.funcs import create_embed, generate_gamestate_csv
+from utils.funcs import create_embed, generate_gamestate_csv, get_valid_emoji
 
 
 __all__ = [
@@ -152,7 +152,9 @@ class PollSelect(discord.ui.Select):
             await interaction.response.send_message('You aren\'t in the whitelist!', ephemeral=True)
             return
 
-        await self.thread.send(f'{interaction.user} selected {self.values[0]}')
+        option_str = format_option_value(self.values[0], self.options, interaction.client)
+
+        await self.thread.send(f'{interaction.user} selected {option_str}')
 
         self.selected_options[interaction.user.id] = self.values[0]
         await interaction.response.defer()
@@ -173,17 +175,27 @@ class PollSelectButton(discord.ui.Button):
             self.view.children[0].disabled = True
             thread = self.view.children[0].thread
             selected_options = self.view.children[0].selected_options
+            all_options = self.view.children[0].options
 
             counts = Counter(selected_options.values())
 
-            for option in self.view.children[0].options:
+            for option in all_options:
                 if option.value not in counts.keys():
                     counts[option.value] = 0
 
-            counts_msg = '\n'.join(f'**"{discord.utils.escape_markdown(c[0])}"** got {c[1]} votes!' for c in
-                                   counts.most_common())
+            counts_msg = ''
+            for value, count in counts.most_common():
+                option_str = format_option_value(value, all_options, interaction.client)
+                counts_msg += f'**"{option_str}"** got {count} votes!\n'
 
-            selected_msg = '\n'.join(f'<@{k}> voted {v}' for k, v in selected_options.items())
+            counts_msg = counts_msg.strip()
+
+            selected_msg = ''
+            for user, value in selected_options.items():
+                option_str = format_option_value(value, all_options, interaction.client)
+                selected_msg += f'<@{user}> voted {option_str}\n'
+
+            selected_msg = selected_msg.strip()
 
             full_msg = counts_msg + '\n\n' + selected_msg if selected_options else 'No one voted!'
 
@@ -225,3 +237,10 @@ class GenerateCSVView(CustomView):
             pass
 
         self.stop()
+
+
+def format_option_value(value: str, all_options: list[discord.SelectOption], client: discord.Client) -> str:
+    option = [o for o in all_options if o.value == value][0]
+    option_label = discord.utils.escape_markdown(option.label)
+    full_emoji = get_valid_emoji(option.emoji, client)
+    return f'{option.emoji} {option_label}' if full_emoji else option_label

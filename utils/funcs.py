@@ -1,7 +1,7 @@
 import io
 import csv
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 import discord
 from discord import Embed, User, Member
@@ -20,9 +20,11 @@ __all__ = [
     'admin_check',
     'get_interaction_parameter',
     'get_valid_roles',
-    'generate_gamestate_csv'
+    'generate_gamestate_csv',
+    'get_valid_emoji'
 ]
 
+T = TypeVar('T')
 
 def get_guild_info(interaction: discord.Interaction) -> 'OptionalGuildInfo':
     for g in interaction.client.guild_info:
@@ -184,3 +186,20 @@ def generate_gamestate_csv(
 
         file_buffer.seek(0)
         return discord.File(file_buffer, 'gamestate.csv')
+
+def get_valid_emoji(emoji: T, client: discord.Client) -> discord.Emoji | T | None:
+    if emoji is None:
+        return None
+
+    if isinstance(emoji, str):
+        return None
+
+    if emoji.is_unicode_emoji():
+        return emoji
+
+    full_emoji = client.get_emoji(emoji.id)
+
+    if not full_emoji:
+        return None
+
+    return full_emoji.available

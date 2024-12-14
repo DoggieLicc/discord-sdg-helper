@@ -3,6 +3,7 @@ import typing
 from dataclasses import dataclass
 from abc import abstractmethod
 
+import emoji
 import discord
 
 from discord import app_commands, Member
@@ -182,24 +183,24 @@ class MiscCog(commands.Cog):
         reaction_str = ''
 
         if forum_channel.default_reaction_emoji:
-            emoji = forum_channel.default_reaction_emoji
+            emoji_ = forum_channel.default_reaction_emoji
             reaction = None
 
             for react in starter_message.reactions:
                 if isinstance(react.emoji, str):
-                    if react.emoji == str(emoji):
+                    if react.emoji == str(emoji_):
                         reaction = react
                         break
                     continue
 
-                if str(react.emoji) == str(emoji) or react.emoji.id == emoji.id:
+                if str(react.emoji) == str(emoji_) or react.emoji.id == emoji_.id:
                     reaction = react
                     break
 
             if reaction:
                 num_reactions = reaction.normal_count
 
-                reaction_str = f' | {num_reactions} {emoji}'
+                reaction_str = f' | {num_reactions} {emoji_}'
 
         embed = utils.create_embed(
             interaction.user,
@@ -313,10 +314,24 @@ class MiscCog(commands.Cog):
 
         view.add_item(select)
         view.add_item(button)
+        fake_ctx = utils.FakeContext(bot=interaction.client, guild=interaction.guild)
+        emoji_converter = commands.PartialEmojiConverter()
 
         for option in poll_options[:25]:
-            fake_option_message = utils.FakeMessage(interaction.guild, option)
-            select.add_option(label=fake_option_message.clean_content[:100])
+            split_option = option.split(maxsplit=1)
+            real_option = option
+            p_emoji = None
+            if len(split_option) >= 2:
+                emoji_str = split_option[0].strip()
+                try:
+                    p_emoji = await emoji_converter.convert(fake_ctx, emoji_str) # type: ignore
+                    real_option = split_option[1]
+                except (commands.BadArgument, commands.CommandError):
+                    if emoji.is_emoji(emoji_str):
+                        p_emoji = emoji_str
+                        real_option = split_option[1]
+            fake_option_message = utils.FakeMessage(interaction.guild, real_option)
+            select.add_option(label=fake_option_message.clean_content[:100], emoji=p_emoji)
 
         await interaction.response.send_message(
             poll_question,
