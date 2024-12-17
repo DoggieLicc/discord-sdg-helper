@@ -18,7 +18,7 @@ class RegenerateView(utils.CustomView):
         super().__init__(owner)
 
     @discord.ui.button(label='Regenerate Roles', style=discord.ButtonStyle.blurple)
-    async def far_left(self, interaction: discord.Interaction, _: Button):
+    async def regenerate(self, interaction: discord.Interaction, _: Button):
         start_time = time.time()
         roles = generate_rolelist_roles(self.rolelist, self.roles)
         end_time = time.time()
@@ -34,7 +34,7 @@ class RegenerateView(utils.CustomView):
 
         roles_str = '\n'.join(roles_str_list)
 
-        await interaction.followup.send(roles_str + elapsed_time_str)
+        await interaction.response.send_message(content=roles_str + elapsed_time_str)
 
 
 class ContextMenuCog(commands.Cog):
@@ -131,7 +131,7 @@ class ContextMenuCog(commands.Cog):
 
         view = RegenerateView(interaction.user, rolelist_info, guild_info.roles)
 
-        await interaction.followup.send(roles_str + elapsed_time_str, view=view)
+        await interaction.edit_original_response(content=roles_str + elapsed_time_str, view=view)
 
 
 async def setup(bot):

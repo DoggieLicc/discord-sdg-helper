@@ -13,31 +13,32 @@ from utils import SDGException, DiscordClient, Account, Role, Subalignment, Fact
 
 
 class DeleteConfirm(utils.CustomView):
-    def __init__(self, owner: discord.User):
+    def __init__(self, owner: discord.User, account_to_delete: discord.User):
         super().__init__(owner=owner)
         self.value = None
+        self.account_to_delete = account_to_delete
 
     @discord.ui.button(label='Delete Account', style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button):
         embed = utils.create_embed(
             interaction.user,
             title='Account Deleted',
-            description='The account has been deleted.'
+            description=f'The account {self.account_to_delete.mention} has been deleted.'
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=None, ephemeral=True)
         self.value = True
-        await self.on_timeout()
+        self.stop()
 
     @discord.ui.button(label='Cancel', style=discord.ButtonStyle.green)
     async def cancel(self, interaction: discord.Interaction, _: discord.ui.Button):
         embed = utils.create_embed(
             interaction.user,
             title='Deletion cancelled',
-            description='The account has not been deleted.'
+            description=f'The account {self.account_to_delete.mention} has not been deleted.'
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=None, ephemeral=True)
         self.value = False
-        await self.on_timeout()
+        self.stop()
 
 
 @app_commands.guild_only()
@@ -150,7 +151,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             description=f'Created {len(new_accounts)} accounts successfully!'
         )
 
-        await interaction.followup.send(embed=embed)
+        await interaction.edit_original_response(embed=embed)
 
     @app_commands.command(name='view')
     @app_commands.describe(member='The member to view the account of. By default this will be your account')
@@ -228,12 +229,18 @@ class AccountCog(commands.GroupCog, group_name='account'):
                         f'Account deletion is completely irreversible, proceed with caution!'
         )
 
-        view = DeleteConfirm(interaction.user)
+        view = DeleteConfirm(interaction.user, member)
         await interaction.response.send_message(embed=confirm_embed, view=view)
         await view.wait()
 
         if view.value is None:
-            await interaction.channel.send('Timed out while waiting for confirmation')
+            timed_out_embed = utils.create_embed(
+                interaction.user,
+                title='Timed out!',
+                description='Timed out while waiting for confirmation',
+                color=discord.Color.red()
+            )
+            await interaction.edit_original_response(embed=timed_out_embed, view=None)
         elif view.value:
             guild_info.accounts.remove(account)
             await self.client.delete_account_from_db(account, interaction.guild_id)
@@ -428,7 +435,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             description=f'Modified {len(new_accounts)} accounts!'
         )
 
-        await interaction.followup.send(embed=embed)
+        await interaction.edit_original_response(embed=embed)
 
     @scroll_group.command(name='view')
     @app_commands.describe(member='The member to view scrolls of. You need to be trusted to view other\'s scrolls')

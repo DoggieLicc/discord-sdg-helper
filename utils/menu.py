@@ -26,11 +26,10 @@ class CustomView(View):
         super().__init__(timeout=360)
 
     async def interaction_check(self, interaction: Interaction, /) -> bool:
-        await interaction.response.defer()
         self.message = interaction.message
 
         if interaction.user != self.owner:
-            await interaction.followup.send('You didn\'t use this command!', ephemeral=True)
+            await interaction.response.send_message(content='You didn\'t use this command!', ephemeral=True)
             return False
 
         return True
@@ -45,10 +44,8 @@ class CustomView(View):
                 pass
 
     def disable_children(self) -> None:
-        children = self.children
-        for child in children:
+        for child in self._children:
             child.disabled = True
-        self._children = children
 
     async def on_error(self, interaction: Interaction, error: Exception, item: Item[Any], /) -> None:
         print(type(error), error)
@@ -63,6 +60,12 @@ class PaginatedMenu(CustomView):
         self.items = items
         self.current_page = 1
         self.max_page = len(self.paginator.pages)
+
+    async def interaction_check(self, interaction: Interaction, /) -> bool:
+        check = await super().interaction_check(interaction)
+        if check:
+            await interaction.response.defer()
+        return check
 
     def format_line(self, item) -> str:
         return str(item)
@@ -168,9 +171,8 @@ class PollSelectButton(discord.ui.Button):
         self.label = 'Stop poll'
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
         if interaction.user == self.allowed_user:
+            await interaction.response.defer()
             self.disabled = True
             self.view.children[0].disabled = True
             thread = self.view.children[0].thread
@@ -205,11 +207,11 @@ class PollSelectButton(discord.ui.Button):
                 description=full_msg
             )
 
-            await interaction.message.edit(view=self.view)
+            await interaction.edit_original_response(view=self.view)
             await thread.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
             self.view.stop()
         else:
-            await interaction.followup.send('Not your button!', ephemeral=True)
+            await interaction.response.send_message(content='Not your button!', ephemeral=True)
 
 
 class GenerateCSVView(CustomView):
@@ -228,15 +230,8 @@ class GenerateCSVView(CustomView):
     @discord.ui.button(label='Generate Gamestate CSV', style=discord.ButtonStyle.blurple)
     async def confirm(self, interaction: discord.Interaction, _: discord.ui.Button):
         csv_file = generate_gamestate_csv(self.players, self.roles)
-        await interaction.followup.send(file=csv_file, ephemeral=self.ephemeral)
-        self.disable_children()
-
-        try:
-            await interaction.edit_original_response(view=self)
-        except discord.NotFound:
-            pass
-
-        self.stop()
+        await interaction.response.send_message(file=csv_file, ephemeral=self.ephemeral)
+        await self.on_timeout()
 
 
 def format_option_value(value: str, all_options: list[discord.SelectOption], client: discord.Client) -> str:

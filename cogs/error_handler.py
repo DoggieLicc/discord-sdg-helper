@@ -101,7 +101,7 @@ class ErrorCog(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
         except (discord.InteractionResponded, discord.NotFound):
             try:
-                await interaction.followup.send(embed=embed)
+                await interaction.edit_original_response(embed=embed)
             except (discord.InteractionResponded, discord.NotFound):
                 try:
                     await interaction.channel.send(embed=embed)

@@ -257,7 +257,7 @@ class MiscCog(commands.Cog):
             )
             embed.colour = discord.Color.yellow()
 
-        await interaction.followup.send(embed=embed)
+        await interaction.edit_original_response(embed=embed)
 
     @app_commands.command(name='anonpoll')
     @app_commands.describe(poll_question='The question to ask')
@@ -560,7 +560,11 @@ class MiscCog(commands.Cog):
 
         view = utils.GenerateCSVView(interaction.user, distributed_users, distributed_roles, ephemeral)
 
-        await interaction.followup.send(embed=embed, view=view, file=file or discord.utils.MISSING)
+        await interaction.edit_original_response(
+            embed=embed,
+            view=view,
+            attachments=[file] if file else discord.utils.MISSING
+        )
 
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_threads=True, create_private_threads=True)
@@ -671,7 +675,7 @@ class MiscCog(commands.Cog):
 
         view = utils.GenerateCSVView(interaction.user, distributed_users or message_mentions, distributed_roles)
 
-        await interaction.followup.send(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
 
 async def setup(bot):
