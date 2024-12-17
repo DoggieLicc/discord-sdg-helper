@@ -157,10 +157,14 @@ class PollSelect(discord.ui.Select):
 
         option_str = format_option_value(self.values[0], self.options, interaction.client)
 
-        await self.thread.send(f'{interaction.user} selected {option_str}')
+        last_selected = self.selected_options.get(interaction.user.id, None)
+        if last_selected is not None:
+            await self.thread.send(f'{interaction.user} switched from {last_selected} to {option_str}')
+        else:
+            await self.thread.send(f'{interaction.user} selected {option_str}')
 
         self.selected_options[interaction.user.id] = self.values[0]
-        await interaction.response.defer()
+        await interaction.response.send_message(f'Your vote for {option_str} has been counted.', ephemeral=True)
 
 
 class PollSelectButton(discord.ui.Button):
