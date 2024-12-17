@@ -48,7 +48,7 @@ class CustomView(View):
             child.disabled = True
 
     async def on_error(self, interaction: Interaction, error: Exception, item: Item[Any], /) -> None:
-        print(type(error), error)
+        await interaction.client.tree.on_error(interaction, error)
 
 
 class PaginatedMenu(CustomView):
