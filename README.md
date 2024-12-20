@@ -2,6 +2,8 @@
 
 A helper for social-deduction games hosted on Discord
 
+[Support Server](https://discord.gg/d7dgReCnRR) - Join for help with the bot!
+
 This bot runs on [discord.py](https://github.com/Rapptz/discord.py)
 
 ## Invite this bot:
@@ -27,6 +29,12 @@ This bot runs on [discord.py](https://github.com/Rapptz/discord.py)
 10. Edit it and add `BOT_TOKEN=<token>` where `<token>` is the bot's token you got from step 1, then save
 11. Run the main script: `python main.py` or `python3 main.py`
 12. Sync the application commands by the text command `sdg.sync` in a channel the bot has access to
+
+### Enviroment Variables:
+* `BOT_TOKEN` - The bot token to run on (Required)
+* `DO_FIRST_SYNC` - If set to true, will run command sync on startup
+* `DEVELOPMENT_GUILD` - ID of guild to sync commands to
+* `GUIDE_CHANNEL_ID` - ID of forum to read guides from
 
 ## How to use this bot:
 This bot uses the slash commands system provided by Discord. Type `/` to see the available commands

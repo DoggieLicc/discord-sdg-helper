@@ -33,6 +33,7 @@ MY_GUILD = discord.Object(id=int(DEV_GUILD_ID)) if DEV_GUILD_ID else None
 
 DO_FIRST_SYNC = os.getenv('DO_FIRST_SYNC') or 'false'
 DO_FIRST_SYNC = DO_FIRST_SYNC.lower().strip() == 'true'
+GUIDE_CHANNEL_ID = os.getenv('GUIDE_CHANNEL_ID')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -43,6 +44,7 @@ allowed_mentions = discord.AllowedMentions(users=True, replied_user=True, everyo
 client = DiscordClient(
     intents=intents,
     test_guild=MY_GUILD,
+    guide_channel_id=GUIDE_CHANNEL_ID,
     do_first_sync=DO_FIRST_SYNC,
     command_prefix=when_mentioned_or('sdg.'),
     allowed_mentions=allowed_mentions,

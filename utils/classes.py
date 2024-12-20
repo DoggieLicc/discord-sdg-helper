@@ -23,7 +23,8 @@ __all__ = [
     'InfoCategory',
     'Account',
     'Achievement',
-    'GuildSettings'
+    'GuildSettings',
+    'GuideItem'
 ]
 
 
@@ -238,7 +239,7 @@ class CustomConnectionState(ConnectionState):
 
 
 class DiscordClient(Bot):
-    def __init__(self, test_guild, do_first_sync: bool, *args, **kwargs):
+    def __init__(self, test_guild, do_first_sync: bool, guide_channel_id: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.test_guild = test_guild
         self.guild_info: list[GuildInfo] = []
@@ -263,6 +264,8 @@ class DiscordClient(Bot):
         self.owner = None
         self.cogs_list: list[str] = []
         self.do_first_sync = do_first_sync
+        self.guide_channel_id = int(guide_channel_id) if guide_channel_id else None
+        self.guides = []
 
     def _get_state(self, **options: Any):
         return CustomConnectionState(
@@ -578,6 +581,34 @@ class DiscordClient(Bot):
             await self.add_settings_to_db(settings, guild_id)
 
         return settings
+
+    async def load_guides(self):
+        guides = []
+        if self.guide_channel_id is None:
+            return
+
+        guide_channel = self.get_channel(self.guide_channel_id)
+
+        if guide_channel is None:
+            print(f'Unable to get channel from {self.guide_channel_id}')
+            return
+
+        if not isinstance(guide_channel, discord.ForumChannel):
+            print(f'{guide_channel.name} is not a forum channel')
+            return
+
+        await self.add_archived_threads(guide_channel)
+
+        for thread in guide_channel.threads:
+            pages = []
+            async for message in thread.history(oldest_first=True):
+                if message.content:
+                    pages.append(message.content)
+
+            if pages:
+                guides.append(GuideItem(thread.name, pages))
+
+        self.guides = guides
 
     async def setup_hook(self):
         self.guild_task = self.loop.create_task(self.load_guild_info())
@@ -941,6 +972,11 @@ class GuildInfo:
     def get_account(self, id_: int) -> Account | None:
         return self._get_item_by_id('accounts', id_)
 
+
+@dataclass(slots=True)
+class GuideItem:
+    name: str
+    pages: list[str]
 
 class SDGException(Exception):
     def __init__(self, *args):

@@ -247,6 +247,11 @@ class Dev(commands.Cog, command_attrs={'hidden': True}):
         app_commands = await self.bot.tree.sync()
         await ctx.send(f'Synced {len(app_commands)} app commands!')
 
+    @commands.command()
+    async def loadguides(self, ctx: commands.Context):
+        await self.bot.load_guides()
+        await ctx.send(f'Loaded {len(self.bot.guides)} guide items!')
+
 
 async def setup(bot):
     await bot.add_cog(Dev(bot))

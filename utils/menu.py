@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import Counter
 
@@ -9,13 +9,17 @@ from discord.ext.commands import Paginator
 
 from utils.funcs import create_embed, generate_gamestate_csv, get_valid_emoji
 
+if TYPE_CHECKING:
+    from utils.classes import GuideItem
+
 
 __all__ = [
     'PaginatedMenu',
     'PollSelect',
     'PollSelectButton',
     'CustomView',
-    'GenerateCSVView'
+    'GenerateCSVView',
+    'GuideMenuView'
 ]
 
 
@@ -237,6 +241,90 @@ class GenerateCSVView(CustomView):
         await interaction.response.send_message(file=csv_file, ephemeral=self.ephemeral)
         await self.on_timeout()
 
+
+class GuideMenuView(CustomView):
+    def __init__(self, interaction: discord.Interaction, guides: list['GuideItem']):
+        super().__init__(owner=interaction.user)
+        self.guides: list = guides
+        self.selected_guide: 'GuideItem' | None = None
+        self.guide_page = 1
+
+        options = []
+        for guide in guides:
+            options.append(
+                discord.SelectOption(
+                    label=guide.name
+                )
+            )
+
+        select = discord.ui.Select(
+            custom_id=f'{interaction.id}:guide',
+            placeholder='Select Guide: ',
+            options=options,
+            row=0
+        )
+        select.interaction_check = self.interaction_check
+        select.callback = self.guide_select_callback
+        self.add_item(select)
+
+    async def update_page(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        page = self.selected_guide.pages[self.guide_page-1]
+
+        embed = create_embed(
+            interaction.user,
+            title=f'{self.selected_guide.name} (Page {self.guide_page}/{len(self.selected_guide.pages)})',
+            description=page
+        )
+
+        await interaction.edit_original_response(embed=embed, view=self)
+
+    async def guide_select_callback(self, interaction: discord.Interaction):
+        select = [c for c in self.children if isinstance(c, discord.ui.Select)][0]
+        option = select.values[0]
+        selected_guide: 'GuideItem' = [g for g in self.guides if g.name == option][0]
+
+        self.enable_buttons()
+        self.selected_guide = selected_guide
+        self.guide_page = 1
+        await self.update_page(interaction)
+
+    def enable_buttons(self):
+        for child in self._children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = False
+
+    @discord.ui.button(emoji='\U000023EA', style=discord.ButtonStyle.blurple, row=1, disabled=True)
+    async def far_left(self, interaction: discord.Interaction, _: Button):
+        self.guide_page = 1
+        await self.update_page(interaction)
+
+    @discord.ui.button(emoji='\U000025C0', style=discord.ButtonStyle.blurple, row=1, disabled=True)
+    async def left(self, interaction: discord.Interaction, _: Button):
+        self.guide_page -= 1
+        self.guide_page = max(self.guide_page, 1)
+        await self.update_page(interaction)
+
+    @discord.ui.button(emoji='\U000023F9', style=discord.ButtonStyle.red, row=1, disabled=True)
+    async def stop_button(self, interaction: discord.Interaction, _: Button):
+        await interaction.response.defer()
+        children = self.children
+        for child in children:
+            child.disabled = True
+        self._children = children
+        await interaction.edit_original_response(view=self)
+
+    @discord.ui.button(emoji='\U000025B6', style=discord.ButtonStyle.blurple, row=1, disabled=True)
+    async def right(self, interaction: discord.Interaction, _: Button):
+        self.guide_page += 1
+        self.guide_page = min(self.guide_page, len(self.selected_guide.pages))
+        await self.update_page(interaction)
+
+    @discord.ui.button(emoji='\U000023E9', style=discord.ButtonStyle.blurple, row=1, disabled=True)
+    async def far_right(self, interaction: discord.Interaction, _: Button):
+        self.guide_page = len(self.selected_guide.pages)
+        await self.update_page(interaction)
 
 def format_option_value(value: str, all_options: list[discord.SelectOption], client: discord.Client) -> str:
     option = [o for o in all_options if o.value == value][0]

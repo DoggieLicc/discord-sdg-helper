@@ -677,6 +677,21 @@ class MiscCog(commands.Cog):
 
         await interaction.edit_original_response(embed=embed, view=view)
 
+    @app_commands.command(name='guide')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to True')
+    async def guide_cmd(self, interaction: discord.Interaction, ephemeral: bool = True):
+        """View the guide on how to use this bot!"""
+        if not self.client.guides:
+            raise SDGException('No guides are loaded. (Tell the hoster)')
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Bot Guide!',
+            description='Select an option below to see the guide for it!'
+        )
+        view = utils.GuideMenuView(interaction, self.client.guides)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=ephemeral)
+
 
 async def setup(bot):
     await bot.add_cog(MiscCog(bot))

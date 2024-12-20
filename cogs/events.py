@@ -54,6 +54,7 @@ class EventsCog(commands.Cog):
             await asyncio.sleep(1)
             await self.sync_all()
             await self.client.post_guild_info_load()
+            await self.client.load_guides()
             self.client.first_sync = True
 
             await self.update_custom_activity()
