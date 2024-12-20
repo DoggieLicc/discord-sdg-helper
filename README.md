@@ -35,6 +35,8 @@ This bot runs on [discord.py](https://github.com/Rapptz/discord.py)
 * `DO_FIRST_SYNC` - If set to true, will run command sync on startup
 * `DEVELOPMENT_GUILD` - ID of guild to sync commands to
 * `GUIDE_CHANNEL_ID` - ID of forum to read guides from
+* `PROMETHEUS_PORT` - Port to serve Prometheus metrics on
+* `DISABLE_PROMETHEUS` - Set to `true` to disable Prometheus metrics
 
 ## How to use this bot:
 This bot uses the slash commands system provided by Discord. Type `/` to see the available commands

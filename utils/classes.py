@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -590,11 +591,11 @@ class DiscordClient(Bot):
         guide_channel = self.get_channel(self.guide_channel_id)
 
         if guide_channel is None:
-            print(f'Unable to get channel from {self.guide_channel_id}')
+            logging.warning('Unable to get channel from %s', self.guide_channel_id)
             return
 
         if not isinstance(guide_channel, discord.ForumChannel):
-            print(f'{guide_channel.name} is not a forum channel')
+            logging.warning('%s is not a forum channel', guide_channel.name)
             return
 
         await self.add_archived_threads(guide_channel)
@@ -619,9 +620,9 @@ class DiscordClient(Bot):
                 await self.tree.sync(guild=self.test_guild)
 
             await self.tree.sync()
-            print('Synced commands automatically (DO_FIRST_SYNC)')
+            logging.info('Synced commands automatically (DO_FIRST_SYNC)')
         else:
-            print('Not syncing commands on start (DO_FIRST_SYNC)')
+            logging.info('Not syncing commands on start (DO_FIRST_SYNC)')
 
     async def load_guild_info(self):
         await self.start_database()

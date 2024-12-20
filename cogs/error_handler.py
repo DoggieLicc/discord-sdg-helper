@@ -1,3 +1,4 @@
+import logging
 import traceback
 
 import discord
@@ -67,7 +68,7 @@ class ErrorCog(commands.Cog):
             lines = traceback.format_exception(etype, error, trace)
             traceback_t: str = ''.join(lines)
 
-            print(traceback_t)
+            logging.error(traceback_t)
             file = utils.str_to_file(traceback_t, filename='traceback.py')
 
             owner: discord.User = await self.client.get_owner()
@@ -106,7 +107,10 @@ class ErrorCog(commands.Cog):
                 try:
                     await interaction.channel.send(embed=embed)
                 except discord.DiscordException:
-                    print(f'Unable to respond to exception in {interaction.channel.name} ({interaction.channel.id})')
+                    logging.info(
+                        'Unable to respond to exception in %s (%s)',
+                        interaction.channel.name, interaction.channel.id
+                    )
 
 
 async def setup(bot):
