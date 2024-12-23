@@ -2,5 +2,6 @@ discord>=2.3.2
 python-dotenv>=1.0.1
 thefuzz>=0.22.1
 emoji>=2.14.0
+audioop-lts>=0.2.0; python_version>='3.13'
 
 git+https://github.com/DoggieLicc/discord.py-ext-prometheus@main#egg=discord-ext-prometheus
