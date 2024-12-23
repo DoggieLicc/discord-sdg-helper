@@ -37,6 +37,7 @@ This bot runs on [discord.py](https://github.com/Rapptz/discord.py)
 * `GUIDE_CHANNEL_ID` - ID of forum to read guides from
 * `PROMETHEUS_PORT` - Port to serve Prometheus metrics on
 * `DISABLE_PROMETHEUS` - Set to `true` to disable Prometheus metrics
+* `DATABASE_FILENAME` - Name of database file. Defaults to `guild_info.db`
 
 ## How to use this bot:
 This bot uses the slash commands system provided by Discord. Type `/` to see the available commands

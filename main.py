@@ -45,6 +45,7 @@ PROMETHEUS_PORT = os.getenv('PROMETHEUS_PORT')
 PROMETHEUS_PORT = int(PROMETHEUS_PORT) if PROMETHEUS_PORT else 8000
 DISABLE_PROMETHEUS = os.getenv('DISABLE_PROMETHEUS') or 'false'
 DISABLE_PROMETHEUS = DISABLE_PROMETHEUS.lower().strip() == 'true'
+DATABASE_FILENAME = os.getenv('DATABASE_FILENAME') or 'guild_info.db'
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -56,6 +57,7 @@ client = DiscordClient(
     intents=intents,
     test_guild=MY_GUILD,
     guide_channel_id=GUIDE_CHANNEL_ID,
+    database_filename=DATABASE_FILENAME,
     do_first_sync=DO_FIRST_SYNC,
     command_prefix=when_mentioned_or('sdg.'),
     allowed_mentions=allowed_mentions,
