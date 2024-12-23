@@ -51,13 +51,14 @@ class DatabaseHelper:
             await conn.execute(f'PRAGMA user_version = {self.user_version}')
 
     async def create_table(self):
-        async with self.db as conn:
-            for table in self.base_tables:
-                column_schema = ', '.join(
-                    f'{col.name} {col.datatype}{" " + col.addit_schema if col.addit_schema else ""}'
-                    for col in table.columns
-                )
-                command = f"CREATE TABLE IF NOT EXISTS {table.name} ({column_schema})"
-                await conn.execute(command)
+        async with asqlite.connect(*self.args, **self.kwargs) as conn:
+            async with conn.cursor() as cursor:
+                for table in self.base_tables:
+                    column_schema = ', '.join(
+                        f'{col.name} {col.datatype}{" " + col.addit_schema if col.addit_schema else ""}'
+                        for col in table.columns
+                    )
+                    command = f"CREATE TABLE IF NOT EXISTS {table.name} ({column_schema})"
+                    await cursor.execute(command)
 
             await conn.commit()
