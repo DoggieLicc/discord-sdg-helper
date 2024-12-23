@@ -733,9 +733,17 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def modify_item_in_db(self, item: type[S], table_name: str):
-        await self.delete_item_from_db(item, table_name)
-        await self.add_item_to_db(item, table_name)
+    async def modify_item_in_db(self, item: S, table_name: str):
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    f'UPDATE {table_name} SET name = ? WHERE channel_id = ?',
+                    (
+                        item.name,
+                        item.id
+                    )
+                )
+            await conn.commit()
 
     async def add_trusted_id_in_db(self, trusted_id: int, guild_id: int):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
@@ -795,8 +803,27 @@ class DiscordClient(Bot):
             await conn.commit()
 
     async def modify_achievement_in_db(self, achievement: Achievement, guild_id: int):
-        await self.delete_achievement_from_db(achievement, guild_id=guild_id)
-        await self.add_achievement_to_db(achievement, guild_id=guild_id)
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'UPDATE achievements SET '
+                    'name = ?, '
+                    'description = ?, '
+                    'role_id = ?, '
+                    'subalignment_id = ?, '
+                    'faction_id = ? '
+                    'WHERE id = ? AND guild_id = ?',
+                    (
+                        achievement.name,
+                        achievement.description,
+                        achievement.role.id if achievement.role else None,
+                        achievement.subalignment.id if achievement.subalignment else None,
+                        achievement.faction.id if achievement.faction else None,
+                        achievement.id,
+                        guild_id
+                    )
+                )
+            await conn.commit()
 
     async def add_account_to_db(self, account: Account, guild_id: int):
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
@@ -830,9 +857,30 @@ class DiscordClient(Bot):
 
             await conn.commit()
 
-    async def modify_account_in_db(self, account: Account, guild_id: int) -> None:
-        await self.delete_account_from_db(account, guild_id=guild_id)
-        await self.add_account_to_db(account, guild_id=guild_id)
+    async def modify_account_in_db(self, account: Account, guild_id: int):
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'UPDATE accounts SET '
+                    'num_wins = ?, '
+                    'num_loses = ?, '
+                    'num_draws = ?, '
+                    'blessed_scrolls = ?, '
+                    'cursed_scrolls = ?, '
+                    'accomplished_achievements = ? '
+                    'WHERE user_id = ? AND guild_id = ?',
+                    (
+                        account.num_wins,
+                        account.num_loses,
+                        account.num_draws,
+                        ','.join(str(s.id) for s in account.blessed_scrolls),
+                        ','.join(str(s.id) for s in account.cursed_scrolls),
+                        ','.join(str(s.id) for s in account.accomplished_achievements),
+                        account.id,
+                        guild_id
+                    )
+                )
+            await conn.commit()
 
     async def add_settings_to_db(self, settings: GuildSettings, guild_id: int) -> None:
         async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
@@ -867,8 +915,32 @@ class DiscordClient(Bot):
             await conn.commit()
 
     async def modify_settings_in_db(self, settings: GuildSettings, guild_id: int):
-        await self.delete_settings_from_db(guild_id)
-        await self.add_settings_to_db(settings, guild_id)
+        async with asqlite.connect('guild_info.db', check_same_thread=False) as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    'UPDATE guild_settings SET '
+                    'max_scrolls = ?, '
+                    'roles_are_scrollable = ?, '
+                    'factions_are_scrollable = ?, '
+                    'subalignments_are_scrollable = ?, '
+                    'role_scroll_multiplier = ?, '
+                    'subalignment_scroll_multiplier = ?, '
+                    'faction_scroll_multiplier = ?, '
+                    'accounts_creatable = ? '
+                    'WHERE guild_id = ?',
+                    (
+                        settings.max_scrolls,
+                        settings.roles_are_scrollable,
+                        settings.factions_are_scrollable,
+                        settings.subalignments_are_scrollable,
+                        settings.role_scroll_multiplier,
+                        settings.subalignment_scroll_multiplier,
+                        settings.faction_scroll_multiplier,
+                        settings.accounts_creatable,
+                        guild_id
+                    )
+                )
+            await conn.commit()
 
 
 @dataclass(slots=True)
