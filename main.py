@@ -70,7 +70,7 @@ async def main():
 
     if not DISABLE_PROMETHEUS:
         logging.getLogger().addHandler(PrometheusLoggingHandler())
-        await client.add_cog(PrometheusCog(client, port=PROMETHEUS_PORT))
+        await client.add_cog(PrometheusCog(client, port=PROMETHEUS_PORT, ignore_text_commands=True))
         logging.info('Enabled Prometheus on port %s (DISABLE_PROMETHEUS)', PROMETHEUS_PORT)
     else:
         logging.info('Prometheus is disabled! (DISABLE_PROMETHEUS)')
