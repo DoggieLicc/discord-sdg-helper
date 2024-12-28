@@ -68,7 +68,7 @@ class ErrorCog(commands.Cog):
             lines = traceback.format_exception(etype, error, trace)
             traceback_t: str = ''.join(lines)
 
-            logger.error(traceback_t)
+            logger.exception('{}: {}', etype.__name__, error)
             file = utils.str_to_file(traceback_t, filename='traceback.py')
 
             owner: discord.User = await self.client.get_owner()
@@ -80,7 +80,11 @@ class ErrorCog(commands.Cog):
                     color=discord.Color.red()
                 )
 
-                owner_embed.add_field(name='Unhandled Error!:', value=f"Error {str(error)[:1000]}", inline=False)
+                owner_embed.add_field(
+                    name='Unhandled Error!:',
+                    value=f"{etype.__name__}: {str(error)[:900]}",
+                    inline=False
+                )
                 owner_embed.add_field(name='Command:', value=str(interaction.data)[:1000], inline=False)
 
                 owner_embed.add_field(
@@ -107,7 +111,7 @@ class ErrorCog(commands.Cog):
                 try:
                     await interaction.channel.send(embed=embed)
                 except discord.DiscordException:
-                    logger.info(
+                    logger.warning(
                         'Unable to respond to exception in %s (%s)',
                         interaction.channel.name, interaction.channel.id
                     )
