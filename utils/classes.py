@@ -773,14 +773,13 @@ class DiscordClient(Bot):
         )
 
     async def delete_achievement_from_db(self, achievement: Achievement, guild_id: int):
-        async with self.db.cursor() as cursor:
-            await cursor.execute(
-                'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
-                (
-                    achievement.id,
-                    guild_id
-                )
+        await self.db.execute(
+            'DELETE FROM achievements WHERE id = (?) AND guild_id = (?)',
+            (
+                achievement.id,
+                guild_id
             )
+        )
 
     async def modify_achievement_in_db(self, achievement: Achievement, guild_id: int):
         await self.db.execute(
