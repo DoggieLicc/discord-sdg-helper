@@ -43,15 +43,21 @@ class DatabaseHelper:
 
         await self.create_table()
 
-    async def conn(self):
-        return await asqlite.connect(*self.args, **self.kwargs)
+    def conn(self):
+        return asqlite.connect(*self.args, **self.kwargs)
+
+    async def execute(self, command: str, *args, **kwargs):
+        async with self.conn() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(command, *args, **kwargs)
+            await conn.commit()
 
     async def set_version(self):
         async with self.db as conn:
             await conn.execute(f'PRAGMA user_version = {self.user_version}')
 
     async def create_table(self):
-        async with asqlite.connect(*self.args, **self.kwargs) as conn:
+        async with await self.conn() as conn:
             async with conn.cursor() as cursor:
                 for table in self.base_tables:
                     column_schema = ', '.join(
