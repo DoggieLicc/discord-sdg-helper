@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import copy
-import logging
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
 import discord
 from discord.ext.commands import Bot
 from discord.state import ConnectionState
+from loguru import logger
 
-import asqlite
 from utils.db_helper import *
 
 __all__ = [
@@ -278,7 +277,7 @@ class DiscordClient(Bot):
         )
 
     async def close(self) -> None:
-        logging.info('Closing database connection...')
+        logger.info('Closing database connection...')
         await self.db.db.close()
         await super().close()
 
@@ -597,11 +596,11 @@ class DiscordClient(Bot):
         guide_channel = self.get_channel(self.guide_channel_id)
 
         if guide_channel is None:
-            logging.warning('Unable to get channel from %s', self.guide_channel_id)
+            logger.warning('Unable to get channel from {}', self.guide_channel_id)
             return
 
         if not isinstance(guide_channel, discord.ForumChannel):
-            logging.warning('%s is not a forum channel', guide_channel.name)
+            logger.warning('{} is not a forum channel', guide_channel.name)
             return
 
         await self.add_archived_threads(guide_channel)
@@ -626,10 +625,11 @@ class DiscordClient(Bot):
                 await self.tree.sync(guild=self.test_guild)
 
             await self.tree.sync()
-            logging.info('Synced commands automatically (DO_FIRST_SYNC)')
+            logger.info('Synced commands automatically (DO_FIRST_SYNC)')
         else:
-            logging.info('Not syncing commands on start (DO_FIRST_SYNC)')
+            logger.info('Not syncing commands on start (DO_FIRST_SYNC)')
 
+    @logger.catch
     async def load_guild_info(self):
         await self.start_database()
 

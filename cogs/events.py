@@ -1,9 +1,8 @@
 import asyncio
-import logging
-
 import discord
 
 from discord.ext import commands, tasks
+from loguru import logger
 
 import utils
 from utils import GuildInfo
@@ -41,12 +40,12 @@ class EventsCog(commands.Cog):
         for guild in self.client.guilds:
             await self.client.sync_guild(guild)
 
-        logging.info('ALL GUILDS SYNCED!')
+        logger.info('ALL GUILDS SYNCED!')
 
     @commands.Cog.listener()
     async def on_ready(self):
-        logging.info('Logged in as %s (ID: %s)', self.client.user, self.client.user.id)
-        logging.info('------')
+        logger.info('Logged in as {} (ID: {})', self.client.user, self.client.user.id)
+        logger.info('------')
 
         if not self.client.first_sync:
             while not self.client.db_loaded:
@@ -122,7 +121,7 @@ class EventsCog(commands.Cog):
         thread = payload.thread or await guild.fetch_channel(payload.thread_id)
 
         if thread not in guild._threads.values():
-            logging.info('Adding %s (%s) to cache', thread.name, thread.id)
+            logger.info('Adding {} ({}) to cache', thread.name, thread.id)
             guild._add_thread(thread)
 
         faction = guild_info.get_faction(payload.parent_id)
@@ -191,7 +190,7 @@ class EventsCog(commands.Cog):
 
                 await self.client.delete_item_from_db(subalignment, 'subalignments')
 
-                logging.info('Deleted %s automatically', subalignment.name)
+                logger.info('Deleted {} automatically', subalignment.name)
 
         await self.client.sync_faction(faction)
 
