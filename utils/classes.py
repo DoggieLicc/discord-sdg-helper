@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import os
 import copy
+import inspect
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
 import discord
 from discord.ext.commands import Bot
+from discord.app_commands import ContextMenu, Command, Group
 from discord.state import ConnectionState
 from loguru import logger
 
@@ -27,6 +30,8 @@ __all__ = [
     'GuideItem'
 ]
 
+
+ELLIPSIS = '…'
 
 @dataclass(slots=True)
 class SDGObject:
@@ -277,8 +282,6 @@ class DiscordClient(Bot):
         )
 
     async def close(self) -> None:
-        logger.info('Closing database connection...')
-        await self.db.db.close()
         await super().close()
 
     async def get_owner(self) -> discord.User:
@@ -618,6 +621,12 @@ class DiscordClient(Bot):
 
     async def setup_hook(self):
         self.guild_task = self.loop.create_task(self.load_guild_info())
+
+        for command in self.tree.get_commands():
+            if isinstance(command, ContextMenu):
+                continue
+
+            log_missing_command_attrs(command)
 
         if self.do_first_sync:
             if self.test_guild:
@@ -1007,3 +1016,25 @@ class GuideItem:
 class SDGException(Exception):
     def __init__(self, *args):
         super().__init__(*args)
+
+
+def get_command_source(command: Command | Group) -> str:
+    src = command.callback
+    _, number = inspect.getsourcelines(src)
+    src_file = inspect.getsourcefile(src)
+    path = os.path.relpath(src_file)
+    return f'{path}:{number}'
+
+
+def log_missing_command_attrs(command: Command | Group):
+    if isinstance(command, Command):
+        if command.description == ELLIPSIS:
+            source = get_command_source(command)
+            logger.warning('Missing description on command /{} ({})', command.qualified_name, source)
+        for parameter in command.parameters:
+            if parameter.description == ELLIPSIS:
+                source = get_command_source(command)
+                logger.warning('Missing description for parameter "{}" in /{} ({})', parameter.name, command.qualified_name, source)
+    else:
+        for command in command.walk_commands():
+            log_missing_command_attrs(command)

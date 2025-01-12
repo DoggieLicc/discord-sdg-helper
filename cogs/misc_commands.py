@@ -345,6 +345,7 @@ class MiscCog(commands.Cog):
     @app_commands.describe(subalignment='List roles part of this subalignment')
     @app_commands.describe(include_tags='List roles that has atleast one of these comma-seperated forum tags')
     @app_commands.describe(exclude_tags='Don\'t list roles that have any of these comma-seperated forum tags')
+    @app_commands.describe(ephemeral='Whether to only show the response to you. Defaults to False')
     async def list_roles(
             self,
             interaction: discord.Interaction,
