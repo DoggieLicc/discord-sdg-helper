@@ -508,10 +508,12 @@ class DiscordClient(Bot):
     async def load_accounts(self, guild_info: GuildInfo) -> list[Account]:
         accounts = []
         rsf_list = guild_info.roles + guild_info.subalignments + guild_info.factions
+        logger.debug('Loading accounts for guild {}', guild_info.guild_id)
 
         async with self.db.conn() as conn:
             async with conn.cursor() as cursor:
                 for row in await cursor.execute('SELECT * FROM accounts WHERE guild_id = (?)', (guild_info.guild_id,)):
+                    logger.debug('Got row {}', row)
                     account_id = row['user_id']
                     account_wins = row['num_wins']
                     account_losses = row['num_loses']
@@ -544,6 +546,8 @@ class DiscordClient(Bot):
                             if ach:
                                 achievements.append(ach[0])
 
+                    logger.debug('Loaded account: {}', account_id)
+
                     accounts.append(
                         Account(
                             id=account_id,
@@ -556,6 +560,9 @@ class DiscordClient(Bot):
                         )
                     )
 
+                    logger.debug('Added account {} to list', account_id)
+
+        logger.debug('Done loading accounts')
         return accounts
 
     async def load_settings(self, guild_id: int) -> GuildSettings:
@@ -697,24 +704,36 @@ class DiscordClient(Bot):
                 guild_settings=guild_settings
             )
 
+            logger.debug('Loaded guild info: {}', guild_info)
+
             self.guild_info.append(guild_info)
 
+        logger.debug('All guilds loaded: {}', [g.guild_id for g in self.guild_info])
         self.db_loaded = True
 
+    @logger.catch
     async def post_guild_info_load(self):
-        for guild_info in self.guild_info:
+        logger.debug('Available guilds: {}', [g.guild_id for g in self.guild_info])
+        for guild_info in self.guild_info.copy():
+            logger.debug('Starting post info load for {}', guild_info.guild_id)
             guild_info.achievements = await self.load_achievements(guild_info)
             guild_info.accounts = await self.load_accounts(guild_info)
+            logger.debug('Loaded achievements and accounts for {}', guild_info.guild_id)
 
             self.replace_guild_info(guild_info)
+            logger.debug('Done replacing guild {}', guild_info.guild_id)
+        logger.debug('Finished post guild info loads')
 
+    @logger.catch
     def replace_guild_info(self, guild_info: GuildInfo) -> None:
         try:
             self.guild_info.remove([gi for gi in self.guild_info if gi.guild_id == guild_info.guild_id][0])
+            logger.debug('Removed guild: {}', guild_info.guild_id)
         except ValueError:
             pass
 
         self.guild_info.append(guild_info)
+        logger.debug('Replaced guild: {}', guild_info.guild_id)
 
     def get_guild_info(self, guild_id: int) -> GuildInfo | None:
         for guild_info in self.guild_info:
@@ -1034,7 +1053,12 @@ def log_missing_command_attrs(command: Command | Group):
         for parameter in command.parameters:
             if parameter.description == ELLIPSIS:
                 source = get_command_source(command)
-                logger.warning('Missing description for parameter "{}" in /{} ({})', parameter.name, command.qualified_name, source)
+                logger.warning(
+                    'Missing description for parameter "{}" in /{} ({})',
+                    parameter.name,
+                    command.qualified_name,
+                    source
+                )
     else:
-        for command in command.walk_commands():
-            log_missing_command_attrs(command)
+        for sub_command in command.walk_commands():
+            log_missing_command_attrs(sub_command)
