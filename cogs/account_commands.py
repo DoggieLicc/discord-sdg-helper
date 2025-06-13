@@ -71,10 +71,10 @@ class AccountCog(commands.GroupCog, group_name='account'):
 
         guild_info = utils.get_guild_info(interaction)
 
-        if member and not await utils.mod_check(interaction):
-            raise SDGException('You aren\'t allowed to create accounts for other members.')
-
         member = member or interaction.user
+
+        if member != interaction.user and not await utils.mod_check(interaction):
+            raise SDGException('You aren\'t allowed to create accounts for other members.')
 
         if member.bot:
             raise SDGException('Can\'t create account for a bot!')
@@ -443,10 +443,11 @@ class AccountCog(commands.GroupCog, group_name='account'):
         """View your own or someone else's equipped scrolls"""
         guild_info = utils.get_guild_info(interaction)
 
+        member = member or interaction.user
+
         if interaction.user != member and not await utils.mod_check(interaction):
             raise SDGException('You don\'t have permission to view other account\'s scrolls.')
 
-        member = member or interaction.user
         account = guild_info.get_account(member.id)
 
         if not account:
