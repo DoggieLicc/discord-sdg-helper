@@ -29,7 +29,7 @@ class FactionCog(commands.GroupCog, group_name='faction'):
         duplicates = [d for d in guild_info.factions if d.id == forum_channel.id or d.name == name]
 
         if duplicates:
-            raise app_commands.AppCommandError('Duplicate faction')
+            raise utils.SDGException('Duplicate faction')
 
         guild_info.factions.append(faction_info)
 
