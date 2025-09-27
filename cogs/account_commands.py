@@ -525,7 +525,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             description=f'Added "{role_subalignment_faction.name}" to {scroll_type}!'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @scroll_group.command(name='remove')
     @app_commands.describe(scroll='The scroll to remove')
@@ -556,7 +556,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             description=f'Removed scroll {scroll_type} - {scroll.name} successfully!'
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.check(utils.mod_check)
     @game_group.command(name='add')

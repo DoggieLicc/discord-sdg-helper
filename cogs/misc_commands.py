@@ -176,7 +176,7 @@ class MiscCog(commands.Cog):
             ephemeral: bool = False
     ):
         """Get info on a role"""
-        thread_channel = interaction.guild.get_channel_or_thread(role.id)
+        thread_channel = interaction.guild.get_channel_or_thread(role.id) or await interaction.guild.fetch_channel(role.id)
         starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
         role_str = starter_message.content
         message_image = starter_message.attachments[0] if starter_message.attachments else None
