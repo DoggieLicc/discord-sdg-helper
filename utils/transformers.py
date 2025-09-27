@@ -4,11 +4,12 @@ import discord
 from discord import app_commands, Interaction, Message
 from discord.app_commands import Choice
 from discord.ext.commands import MessageConverter, MemberConverter, RoleConverter, BadArgument, CommandError
-from discord.utils import cached_property
+from discord.utils import cached_property, maybe_coroutine
 from thefuzz import process as thefuzz_process
 from thefuzz import fuzz
 
 from utils.classes import *
+from utils.funcs import get_or_fetch_channel
 
 __all__ = [
     'FakeContext',
@@ -127,7 +128,7 @@ class GreedyMemberRoleTransformer(app_commands.Transformer):
 
 class ChoiceTransformer(app_commands.Transformer):
     async def transform(self, interaction: Interaction, value: Any, /) -> Any:
-        return self.get_value(interaction, value)
+        return await maybe_coroutine(self.get_value, interaction, value)
 
     def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
         raise NotImplementedError('Derived classes need to implement this method')
@@ -138,7 +139,7 @@ class ChoiceTransformer(app_commands.Transformer):
     async def autocomplete(
             self, interaction: Interaction, value: int | float | str, /
     ) -> list[Choice[int | float | str]]:
-        choices = self.get_choices(interaction)
+        choices = await maybe_coroutine(self.get_choices, interaction)
         if not value:
             return choices[:25]
 
@@ -307,7 +308,7 @@ class ScrollTransformer(ChoiceTransformer):
 
 
 class ForumTagTransformer(ChoiceTransformer):
-    def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
+    async def get_choices(self, interaction: Interaction) -> list[app_commands.Choice]:
         guild_info: GuildInfo = interaction.client.get_guild_info(interaction.guild.id)
         faction_id = interaction.data['options'][0]['options'][0]['value']
 
@@ -316,7 +317,7 @@ class ForumTagTransformer(ChoiceTransformer):
 
         faction_id = int(faction_id)
 
-        faction_channel = interaction.guild.get_channel(faction_id)
+        faction_channel = await get_or_fetch_channel(interaction.guild, faction_id)
 
         choice_list = []
         for tag in faction_channel.available_tags:
@@ -325,9 +326,9 @@ class ForumTagTransformer(ChoiceTransformer):
 
         return choice_list
 
-    def get_value(self, interaction: Interaction, value: Any) -> discord.ForumTag:
+    async def get_value(self, interaction: Interaction, value: Any) -> discord.ForumTag:
         faction_id = int(interaction.data['options'][0]['options'][0]['value'])
-        faction_channel = interaction.guild.get_channel(faction_id)
+        faction_channel = await get_or_fetch_channel(interaction.guild, faction_id)
 
         if faction_channel is None:
             raise SDGException('Invalid value')

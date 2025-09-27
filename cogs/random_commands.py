@@ -41,7 +41,7 @@ class RandomCog(commands.GroupCog, group_name='random'):
         """Get random roles!"""
         guild_info = utils.get_guild_info(interaction)
 
-        valid_roles = utils.get_valid_roles(
+        valid_roles = await utils.get_valid_roles(
             include_tags=include_tags,
             exclude_tags=exclude_tags,
             guild_info=guild_info,

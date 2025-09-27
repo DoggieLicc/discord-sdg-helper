@@ -176,7 +176,7 @@ class MiscCog(commands.Cog):
             ephemeral: bool = False
     ):
         """Get info on a role"""
-        thread_channel = interaction.guild.get_channel_or_thread(role.id) or await interaction.guild.fetch_channel(role.id)
+        thread_channel = await utils.get_or_fetch_channel(interaction.guild, role.id)
         starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
         role_str = starter_message.content
         message_image = starter_message.attachments[0] if starter_message.attachments else None
@@ -360,7 +360,7 @@ class MiscCog(commands.Cog):
         """Lists all roles that fit the filters"""
         guild_info = get_guild_info(interaction)
 
-        valid_roles = utils.get_valid_roles(
+        valid_roles = await utils.get_valid_roles(
             include_tags=include_tags,
             exclude_tags=exclude_tags,
             guild_info=guild_info,
@@ -749,7 +749,7 @@ class MiscCog(commands.Cog):
         roles_str_list = []
 
         for role in new_roles:
-            faction_channel = self.client.get_channel(role.faction.id)
+            faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
             sub_tag = faction_channel.get_tag(role.subalignment.id)
             roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
 

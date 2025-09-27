@@ -28,7 +28,7 @@ class RegenerateView(utils.CustomView):
         roles_str_list = []
 
         for role in roles:
-            faction_channel = interaction.client.get_channel(role.faction.id)
+            faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
             sub_tag = faction_channel.get_tag(role.subalignment.id)
             roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
 
@@ -120,7 +120,7 @@ class ContextMenuCog(commands.Cog):
         roles_str_list = []
 
         for role in roles:
-            faction_channel = self.client.get_channel(role.faction.id)
+            faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
             sub_tag = faction_channel.get_tag(role.subalignment.id)
             roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
 

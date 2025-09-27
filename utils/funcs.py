@@ -19,6 +19,7 @@ __all__ = [
     'mod_check',
     'admin_check',
     'get_interaction_parameter',
+    'get_or_fetch_channel',
     'get_valid_roles',
     'generate_gamestate_csv',
     'get_valid_emoji'
@@ -120,7 +121,11 @@ def get_interaction_parameter(interaction: discord.Interaction, name: str, defau
     return value['value']
 
 
-def get_valid_roles(
+async def get_or_fetch_channel(guild: discord.Guild, channel_id: int):
+    return guild.get_channel_or_thread(channel_id) or await guild.fetch_channel(channel_id)
+
+
+async def get_valid_roles(
         include_tags: str,
         exclude_tags: str,
         guild_info: 'utils.GuildInfo',
@@ -139,7 +144,7 @@ def get_valid_roles(
         if subalignment and role.subalignment.id != subalignment.id:
             continue
 
-        role_thread = guild.get_channel_or_thread(role.id)
+        role_thread = await get_or_fetch_channel(guild, role.id)
         role_thread_tags = [t.name.lower().strip() for t in role_thread.applied_tags]
         has_included_tag = not bool(include_tags)
         has_excluded_tag = False

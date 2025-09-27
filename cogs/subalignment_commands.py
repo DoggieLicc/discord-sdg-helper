@@ -55,7 +55,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
         """Get info for a subalignment"""
         roles = self.client.get_subalignment_roles(subalignment)
         faction = self.client.get_subalignment_faction(subalignment)
-        faction_channel = self.client.get_channel(faction.id)
+        faction_channel = await utils.get_or_fetch_channel(interaction.guild, faction.id)
         emoji_str = ''
 
         for tag in faction_channel.available_tags:
@@ -118,7 +118,7 @@ class SubalaignmentCog(commands.GroupCog, group_name='subalignment'):
     ):
         """Lists all of a faction's subalignments"""
         subalignments = self.client.get_faction_subalignments(faction)
-        faction_channel = self.client.get_channel(faction.id)
+        faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
 
         if not subalignments:
             raise utils.SDGException('No subalignments defined yet! Use /subalignment add...')

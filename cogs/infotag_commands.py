@@ -78,7 +78,7 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
             ephemeral: bool = False
     ):
         """View an infotag"""
-        info_cat_channel = interaction.guild.get_channel_or_thread(info_category.id)
+        info_cat_channel = await utils.get_or_fetch_channel(interaction.guild, info_category.id)
         info_tag_thread = info_cat_channel.get_thread(info_tag.id)
 
         if not info_tag_thread:

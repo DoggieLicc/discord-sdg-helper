@@ -20,15 +20,12 @@ class EventsCog(commands.Cog):
     def cog_unload(self) -> None:
         self.update_custom_activity.cancel()
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=30)
     async def update_custom_activity(self):
         len_roles = sum(len(gi.roles) for gi in self.client.guild_info)
         len_guilds = len(self.client.guilds)
         activity = discord.CustomActivity(f'Handling {len_roles} roles in {len_guilds} servers')
-
-        if self.client and activity != self.last_activity:
-            await self.client.change_presence(activity=activity)
-            self.last_activity = activity
+        await self.client.change_presence(activity=activity)
 
     @update_custom_activity.before_loop
     async def update_custom_activity_before(self):
