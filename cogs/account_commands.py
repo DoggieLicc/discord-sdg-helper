@@ -25,7 +25,7 @@ class DeleteConfirm(utils.CustomView):
             title='Account Deleted',
             description=f'The account {self.account_to_delete.mention} has been deleted.'
         )
-        await interaction.response.send_message(embed=embed, view=None, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         self.value = True
         self.stop()
 
@@ -36,7 +36,7 @@ class DeleteConfirm(utils.CustomView):
             title='Deletion cancelled',
             description=f'The account {self.account_to_delete.mention} has not been deleted.'
         )
-        await interaction.response.send_message(embed=embed, view=None, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         self.value = False
         self.stop()
 
