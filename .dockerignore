@@ -197,3 +197,14 @@ data/
 data/*
 prometheus_data/
 prometheus_data/*
+
+# Dockerignore
+.gitignore
+README.md 
+.git/
+.github/
+.dockerignore
+**/__pycache__*
+**/*.pyc
+prometheus.yml
+docker-compose*

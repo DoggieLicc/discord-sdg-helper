@@ -9,6 +9,8 @@ import discord
 from dotenv import load_dotenv
 from discord.ext.commands import when_mentioned_or
 from discord.ext.prometheus import PrometheusCog, PrometheusLoggingHandler
+
+load_dotenv()  # Load before importing logger to load LOGURU_LEVEL
 from loguru import logger
 
 from utils import DiscordClient
@@ -29,8 +31,6 @@ cogs = [
     'cogs.events'
 ]
 
-load_dotenv()
-
 DISCORD_TOKEN = os.getenv('BOT_TOKEN')
 
 DEV_GUILD_ID = os.getenv('DEVELOPMENT_GUILD')
@@ -43,7 +43,10 @@ PROMETHEUS_PORT = os.getenv('PROMETHEUS_PORT')
 PROMETHEUS_PORT = int(PROMETHEUS_PORT) if PROMETHEUS_PORT else 8000
 DISABLE_PROMETHEUS = os.getenv('DISABLE_PROMETHEUS') or 'false'
 DISABLE_PROMETHEUS = DISABLE_PROMETHEUS.lower().strip() == 'true'
+
+DATA_DIR = os.getenv('DATA_DIR') or 'data'
 DATABASE_FILENAME = os.getenv('DATABASE_FILENAME') or 'guild_info.db'
+DATABASE_PATH = f'{DATA_DIR}/{DATABASE_FILENAME}'
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -75,7 +78,7 @@ async def main():
         intents=intents,
         test_guild=MY_GUILD,
         guide_channel_id=GUIDE_CHANNEL_ID,
-        database_filename=DATABASE_FILENAME,
+        database_filename=DATABASE_PATH,
         do_first_sync=DO_FIRST_SYNC,
         command_prefix=when_mentioned_or('sdg.'),
         allowed_mentions=allowed_mentions,

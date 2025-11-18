@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: "sdg-helper"
+    static_configs:
+      - targets: ["discord-sdg-helper:8000"]

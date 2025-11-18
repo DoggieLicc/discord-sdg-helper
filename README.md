@@ -9,6 +9,15 @@ This bot runs on [discord.py](https://github.com/Rapptz/discord.py)
 ## Invite this bot:
 [Invite Link](https://discord.com/oauth2/authorize?client_id=1299302394299158538), it's recommended to not remove any permissions, as some or all commands may stop working
 
+## Self-hosting guide (docker compose):
+1. Create a bot account in the Discord Dev portal and invite it to your server. - [Guide](https://discordpy.readthedocs.io/en/latest/discord.html)
+
+2. Enable member and message intents - [Example](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents)
+
+3. Install Docker Engine + docker compose if you don't have it already - [Docs](https://docs.docker.com/engine/install/)
+
+4. Use the `docker-compose.yml` file as a template, and fill in the `BOT_TOKEN` variable with your bot token (or in a `.env` file)
+
 ## Self-hosting guide:
 
 1. Create a bot account in the Discord Dev portal and invite it to your server. - [Guide](https://discordpy.readthedocs.io/en/latest/discord.html)

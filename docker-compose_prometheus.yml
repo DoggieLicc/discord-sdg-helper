@@ -1,0 +1,41 @@
+# Example compose file with prometheus service
+
+services:
+  discord-sdg-helper:
+    image: git.doggieli.cc/doggie/discord-sdg-helper:latest
+    container_name: discord-sdg-helper
+    restart: unless-stopped
+    networks:
+      - prometheus
+
+    volumes:
+      - ./data:/data
+
+    env_file: .env
+
+    environment:
+      - DATA_DIR=/data
+
+      #- BOT_TOKEN=...
+      #- DEVELOPMENT_GUILD=...
+      #- GUIDE_CHANNEL_ID=...
+      #- PROMETHEUS_PORT=8000
+      #- DISABLE_PROMETHEUS=false
+      #- DATABASE_FILENAME=guild_info.db
+      #- LOGURU_LEVEL=INFO
+
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    container_name: prometheus_sdg
+    restart: unless-stopped
+    user: "1000:1000"
+    networks:
+      - prometheus
+    volumes:
+      - "./prometheus.yml:/etc/prometheus/prometheus.yml"
+      - ./prometheus_data:/prometheus
+    #ports:
+    #  - 9090:9090
+
+networks:
+  prometheus:

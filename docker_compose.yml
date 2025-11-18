@@ -1,0 +1,19 @@
+services:
+  discord-sdg-helper:
+    image: git.doggieli.cc/doggie/discord-sdg-helper:latest
+    container_name: discord-sdg-helper
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+
+    env_file: .env
+
+    environment:
+      - DATA_DIR=/data
+
+      #- BOT_TOKEN=...
+      #- GUIDE_CHANNEL_ID=...
+      #- PROMETHEUS_PORT=8000
+      #- DISABLE_PROMETHEUS=false
+      #- DATABASE_FILENAME=guild_info.db
+      #- LOGURU_LEVEL=INFO
