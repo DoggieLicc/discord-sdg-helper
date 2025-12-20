@@ -1,12 +1,29 @@
-FROM python:3.10.19-alpine
+# "Building" the venv
+FROM dhi.io/python:3.10-alpine3.22-dev AS build-stage
+
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/venv/bin:$PATH"
 
 WORKDIR /app
 
 RUN apk --no-interactive -U add git && apk cache clean
 
-COPY requirements.txt /app
+RUN python -m venv /app/venv
 
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Runtime stage
+FROM dhi.io/python:3.10-alpine3.22 AS runtime-stage
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY --from=build-stage /app/venv /app/venv
 
 COPY . /app
 
