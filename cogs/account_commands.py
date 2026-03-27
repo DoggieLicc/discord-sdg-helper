@@ -264,6 +264,8 @@ class AccountCog(commands.GroupCog, group_name='account'):
         if not guild_info.accounts:
             raise SDGException('This server has no accounts!')
 
+        await interaction.response.defer(ephemeral=True)
+
         valid_accounts = []
 
         if mentions_message:
@@ -308,7 +310,7 @@ class AccountCog(commands.GroupCog, group_name='account'):
             file_buffer.seek(0)
             file = discord.File(file_buffer, 'accounts.csv')
 
-        await interaction.response.send_message(file=file, ephemeral=True)
+        await interaction.edit_original_response(attachments=[file])
 
     @app_commands.command(name='import')
     @app_commands.describe(csv_file='The csv file of accounts to import')
