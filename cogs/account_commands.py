@@ -347,9 +347,9 @@ class AccountCog(commands.GroupCog, group_name='account'):
             if not existing_account:
                 continue
 
-            num_wins = int(row['num_wins'])
-            num_losses = int(row['num_loses'])
-            num_draws = int(row['num_draws'])
+            num_wins = int(row['num_wins'] or 0)
+            num_losses = int(row['num_loses'] or 0)
+            num_draws = int(row['num_draws'] or 0)
             blessed_scrolls_list = row['blessed_scrolls'].split(',')
             cursed_scrolls_list = row['cursed_scrolls'].split(',')
             achievements_list = row['accomplished_achievements'].split(',')
