@@ -234,6 +234,9 @@ class MiscCog(commands.Cog):
         len_infocategories = len(guild_info.info_categories)
         len_roles = len(guild_info.roles)
         len_infotags = len(guild_info.info_tags)
+        len_achievements = len(guild_info.achievements)
+        len_accounts = len(guild_info.accounts)
+        len_trusted = len(guild_info.trusted_ids)
 
         embed = utils.create_embed(
             interaction.user,
@@ -242,6 +245,9 @@ class MiscCog(commands.Cog):
                         f'**Factions:** {len_factions}\n'
                         f'**Subalignments:** {len_subalignments}\n'
                         f'**Info Categories:** {len_infocategories}\n\n'
+                        f'**Achievements:** {len_achievements}\n'
+                        f'**Accounts:** {len_accounts}\n'
+                        f'**Trusteds:** {len_trusted}\n\n'
                         f'**Roles:** {len_roles}\n'
                         f'**Info tags:** {len_infotags}'
         )
