@@ -25,7 +25,8 @@ __all__ = [
     'RSFTransformer',
     'ScrollTransformer',
     'ForumTagTransformer',
-    'AchievementTransformer'
+    'AchievementTransformer',
+    'PartialEmoteTransformer'
 ]
 
 
@@ -358,3 +359,10 @@ class AchievementTransformer(ChoiceTransformer):
             raise SDGException('Invalid value')
 
         return achievement
+
+class PartialEmoteTransformer(app_commands.Transformer):
+    # pylint: disable=abstract-method
+    async def transform(self, interaction: Interaction, value: str, /) -> discord.PartialEmoji:
+        value = value.strip('`\n \\').replace(';', ':')
+
+        return discord.PartialEmoji.from_str(value, client=interaction.client)

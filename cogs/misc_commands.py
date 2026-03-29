@@ -769,6 +769,39 @@ class MiscCog(commands.Cog):
             except Exception:
                 pass
 
+    @app_commands.guild_only()
+    @app_commands.command(name='stealemote')
+    @app_commands.checks.bot_has_permissions(create_expressions=True)
+    @app_commands.describe(emote='The emote to add. The easiest way to obtain it without nitro is by using the "Copy Text" button')
+    @app_commands.describe(name='The name to add the emote as, if not specified will use the original emote\'s name')
+    async def steal_emote(
+        self,
+        interaction: discord.Interaction,
+        emote: Transform[discord.PartialEmoji, utils.PartialEmoteTransformer],
+        name: str | None = ''
+    ):
+        """Add a specified emote to this server. User needs to either be Trusted or have the "Create Expressions" permission"""
+
+        if not emote.is_custom_emoji():
+            raise SDGException('Not a custom  emote!')
+
+        if not interaction.user.guild_permissions.create_expressions and not await utils.mod_check(interaction):
+            raise SDGException('You aren\'t Trusted and don\'t have permissions to add emotes to this server!')
+
+        new_emote = await interaction.guild.create_custom_emoji(
+            name=name or emote.name,
+            image=await emote.read(),
+            reason=f'Added by {interaction.user} ({interaction.user.id})'
+        )
+
+        embed = utils.create_embed(
+            interaction.user,
+            title='Emote added!',
+            description=f'Added {new_emote} to server!'
+        )
+
+        await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(MiscCog(bot))
