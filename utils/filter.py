@@ -306,7 +306,6 @@ class WeightMultiplier(WeightChanger):
 class Slot:
     filters: list[Filter]
     ignore_global: bool
-    weight: int | float = 10
     flex_faction: None | str | Role | Subalignment | Faction = None
 
 
@@ -314,14 +313,19 @@ class Slot:
 class MultiSlot:
     slots: list[Slot]
 
-    def get_slot_weights(self) -> list[int | float]:
-        return [s.weight for s in self.slots]
+    def get_slot_weights(self, in_roles: set[PartialRole], weight_changers: list[WeightChanger]) -> list[int | float]:
+        weights = []
+        for slot in self.slots:
+            valid_roles = process_filters(in_roles, slot.filters)
+            weights.append(sum(get_role_weight(v_r, weight_changers) for v_r  in valid_roles))
 
-    def pop_random_weighted_slot(self) -> Slot | None:
+        return weights
+
+    def pop_random_weighted_slot(self, in_roles: set[PartialRole], weight_changers: list[WeightChanger]) -> Slot | None:
         if not self.slots:
             return None
 
-        slot = random.choices(self.slots, weights=self.get_slot_weights(), k=1)[0]
+        slot = random.choices(self.slots, weights=self.get_slot_weights(in_roles, weight_changers), k=1)[0]
         self.slots.remove(slot)
 
         return slot
@@ -627,7 +631,7 @@ def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[
 
     for u_slot in slots_copy:
         if isinstance(u_slot, MultiSlot):
-            slot = u_slot.pop_random_weighted_slot()
+            slot = u_slot.pop_random_weighted_slot(partial_roles, weight_changers)
         else:
             slot = u_slot
 
@@ -645,7 +649,7 @@ def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[
 
             if not valid_roles:
                 if isinstance(u_slot, MultiSlot):
-                    slot = u_slot.pop_random_weighted_slot()
+                    slot = u_slot.pop_random_weighted_slot(partial_roles, weight_changers)
                     if not slot.ignore_global:
                         slot.filters += rolelist.global_filters
 
