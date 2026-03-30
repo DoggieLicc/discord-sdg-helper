@@ -227,7 +227,7 @@ class GenerateCSVView(CustomView):
             self,
             owner: discord.User,
             players: list[discord.User],
-            roles: list[discord.Role],
+            roles,
             ephemeral: bool = True
     ):
         super().__init__(owner=owner)

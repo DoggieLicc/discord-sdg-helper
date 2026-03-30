@@ -25,14 +25,7 @@ class RegenerateView(utils.CustomView):
         elapsed_time = end_time - start_time
         elapsed_time_str = f'\n\nGenerated roles in {elapsed_time:4f} seconds'
 
-        roles_str_list = []
-
-        for role in roles:
-            faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
-            sub_tag = faction_channel.get_tag(role.subalignment.id)
-            roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
-
-        roles_str = '\n'.join(roles_str_list)
+        roles_str = await utils.format_generated_roles(roles, interaction)
 
         await interaction.response.send_message(content=roles_str + elapsed_time_str)
 
@@ -106,7 +99,7 @@ class ContextMenuCog(commands.Cog):
             if role:
                 cleaned_content = cleaned_content.replace(match_str, f'%{role.name}')
 
-        rolelist_info = utils.get_rolelist(cleaned_content, all_roles=guild_info.roles)
+        rolelist_info = utils.get_rolelist(cleaned_content, guild_info)
 
         if len(rolelist_info.slots) > 30:
             raise SDGException('Too many slots! Max number of slots is 30')
@@ -117,14 +110,7 @@ class ContextMenuCog(commands.Cog):
         elapsed_time = end_time - start_time
         elapsed_time_str = f'\n\nGenerated roles in {elapsed_time:4f} seconds'
 
-        roles_str_list = []
-
-        for role in roles:
-            faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
-            sub_tag = faction_channel.get_tag(role.subalignment.id)
-            roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
-
-        roles_str = '\n'.join(roles_str_list)
+        roles_str = await utils.format_generated_roles(roles, interaction)
 
         if not roles_str:
             raise SDGException('No slots specified in message!')

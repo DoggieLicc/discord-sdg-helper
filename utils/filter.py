@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import random
+import copy
+import re
 
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
-from utils.classes import Role, SDGException
+from utils.classes import Role, Subalignment, Faction, SDGException
 
 
 __all__ = [
     'generate_rolelist_roles',
-    'get_rolelist'
+    'get_rolelist',
+    'get_flex_faction'
 ]
 
 
@@ -38,6 +41,49 @@ class PartialRole:
                 return role
         raise SDGException(f'Unable to convert partial role {self.name} to full role')
 
+
+@dataclass(frozen=True)
+class FactionedPartialRole:
+    role: PartialRole
+    flex_faction: None | str | Role | Subalignment | Faction = None
+
+
+@dataclass(slots=True)
+class FactionedRole:
+    role: Role
+    flex_faction: None | str | Role | Subalignment | Faction = None
+
+    @property
+    def faction_name(self) -> str | None:
+        if self.flex_faction is None:
+            return None
+
+        if isinstance(self.flex_faction, str):
+            return self.flex_faction
+
+        return self.flex_faction.name
+
+    def __post_init__(self):
+        if self.is_role_in_flex_faction():
+            self.flex_faction = None
+
+    def is_role_in_flex_faction(self) -> bool:
+        if self.flex_faction is None:
+            return True
+
+        if isinstance(self.flex_faction, str):
+            return False
+
+        if isinstance(self.flex_faction, Role):
+            return self.role.id == self.flex_faction.id
+
+        if isinstance(self.flex_faction, Subalignment):
+            return self.role.subalignment.id == self.flex_faction.id
+
+        if isinstance(self.flex_faction, Faction):
+            return self.role.faction.id == self.flex_faction.id
+
+        return False 
 
 @dataclass(slots=True)
 class Filter(ABC):
@@ -252,11 +298,30 @@ class WeightMultiplier(WeightChanger):
 class Slot:
     filters: list[Filter]
     ignore_global: bool
+    weight: int | float = 10
+    flex_faction: None | str | Role | Subalignment | Faction = None
 
 
 @dataclass(slots=True)
-class Rolelist:
+class MultiSlot:
     slots: list[Slot]
+
+    def get_slot_weights(self) -> list[int | float]:
+        return [s.weight for s in self.slots]
+
+    def pop_random_weighted_slot(self) -> Slot | None:
+        if not self.slots:
+            return None
+
+        slot = random.choices(self.slots, weights=self.get_slot_weights(), k=1)[0]
+        self.slots.remove(slot)
+
+        return slot
+        
+
+@dataclass(slots=True)
+class Rolelist:
+    slots: list[Slot | MultiSlot]
     global_filters: list[Filter]
     modifiers: list[Modifier]
     weight_changers: list[WeightChanger]
@@ -464,8 +529,55 @@ def get_all_weights(roles: list[PartialRole], weight_changers: list[WeightChange
 
     return weights
 
+def get_flex_faction(text: str, guild_info: GuildInfo) -> str | Role | Subalignment | Faction:
+    fac_matches = [f for f in guild_info.factions if f.name.lower() == text.lower()]
+    faction = None
 
-def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
+    if fac_matches:
+        faction = fac_matches[0]
+
+    if not faction:
+        sub_matches = [s for s in guild_info.subalignments if s.name.lower() == text.lower()]
+        if sub_matches:
+            faction = sub_matches[0]
+
+    if not faction:
+        role_matches = [r for r in guild_info.roles if r.name.lower() == text.lower()]
+        if role_matches:
+            faction = role_matches[0]
+
+    if not faction:
+        faction = text
+
+    return faction
+
+def get_slots_from_line(line: str, guild_info: GuildInfo) -> Slot | MultiSlot:
+    split_strs = line.split('-')
+    slots = []
+    for s_s in split_strs:
+        res = re.findall(r'\((.*?)\)', s_s)
+        faction = None
+        if res:
+            res = res[0]
+            fres = f'({res})'
+            s_s = s_s.replace(fres, '').strip(' ')
+            faction = get_flex_faction(res, guild_info)
+
+        slot = get_str_filters(s_s)
+        slot.flex_faction = faction
+        slots.append(slot)
+
+    if not slots:
+        raise SDGException(f'Unable to get slots from {line}')
+
+    if len(slots) == 1:
+        return slots[0]
+
+    return MultiSlot(slots)
+
+
+def get_rolelist(message_str: str, guild_info: GuildInfo) -> Rolelist:
+    all_roles = guild_info.roles
     message_lines = message_str.splitlines()
     global_filters = []
     slots = []
@@ -491,49 +603,64 @@ def get_rolelist(message_str: str, all_roles: list[Role]) -> Rolelist:
             weights.append(get_weight_chnager(weight_str, partial_roles))
             continue
 
-        slot = get_str_filters(line)
+        slot = get_slots_from_line(line, guild_info)
         slots.append(slot)
 
     return Rolelist(slots=slots, global_filters=global_filters, modifiers=modifiers, weight_changers=weights)
 
 
-def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[Role]:
-    new_slots = []
-    roles: list[PartialRole] = []
+def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[FactionedRole]:
+    roles: list[FactionedRole] = []
+    p_roles: list[PartialRole] = []
     weight_changers = rolelist.weight_changers
     partial_roles = {PartialRole.from_role(r) for r in full_roles}
 
-    for slot in rolelist.slots:
+    slots_copy = copy.deepcopy(rolelist.slots)
+
+    for u_slot in slots_copy:
+        if isinstance(u_slot, MultiSlot):
+            slot = u_slot.pop_random_weighted_slot()
+        else:
+            slot = u_slot
+
         if not slot.ignore_global:
             slot.filters += rolelist.global_filters
 
-        new_slots.append(slot)
+        valid_roles = []
+        while not valid_roles:
+            valid_roles = partial_roles
+            for r_filter in slot.filters:
+                valid_roles = r_filter.filter_roles(valid_roles)
 
-    for slot in new_slots:
-        valid_roles = partial_roles
-        for r_filter in slot.filters:
-            valid_roles = r_filter.filter_roles(valid_roles)
+            for modifier in rolelist.modifiers:
+                valid_roles = modifier.modify_valid_roles(valid_roles, p_roles)
 
-        for modifier in rolelist.modifiers:
-            valid_roles = modifier.modify_valid_roles(valid_roles, roles)
+            if not valid_roles:
+                if isinstance(u_slot, MultiSlot):
+                    slot = u_slot.pop_random_weighted_slot()
+                    if not slot.ignore_global:
+                        slot.filters += rolelist.global_filters
 
-        if not valid_roles:
-            raise SDGException(f'No valid roles for {slot}')
+                if isinstance(u_slot, Slot) or slot is None:
+                    raise SDGException(f'No valid roles for {u_slot}')
 
         list_valid_roles = list(valid_roles)
 
         if not rolelist.weight_changers:
-            roles.append(random.choice(list_valid_roles))
+            role = random.choice(list_valid_roles)
+            fp_role = FactionedPartialRole(role, slot.flex_faction)
         else:
             weights = get_all_weights(list_valid_roles, weight_changers)
             role = random.choices(list_valid_roles, weights=weights, k=1)[0]
+            fp_role = FactionedPartialRole(role, slot.flex_faction)
 
             for weight_changer in weight_changers:
                 if weight_changer.limit and role in weight_changer.roles:
                     weight_changer.limit -= 1
 
-            roles.append(role)
+        roles.append(fp_role)
+        p_roles.append(fp_role.role)
 
-    refull_roles = [r.to_role(full_roles) for r in roles]
+    refull_roles = [FactionedRole(r.role.to_role(full_roles), r.flex_faction) for r in roles]
 
     return refull_roles

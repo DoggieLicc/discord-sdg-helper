@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, TypeVar
 import discord
 from discord import Embed, User, Member
 
+from utils.classes import Role, Subalignment, Faction
+
 if TYPE_CHECKING:
     import utils
     OptionalGuildInfo = None | utils.GuildInfo
@@ -22,7 +24,9 @@ __all__ = [
     'get_or_fetch_channel',
     'get_valid_roles',
     'generate_gamestate_csv',
-    'get_valid_emoji'
+    'get_valid_emoji',
+    'get_faction_emote',
+    'format_generated_roles'
 ]
 
 T = TypeVar('T')
@@ -169,23 +173,30 @@ async def get_valid_roles(
 
 def generate_gamestate_csv(
         users: list[discord.User],
-        roles: list['utils.Role'] | None
+        roles: list['utils.FactionedRole'] | None
 ) -> discord.File:
     file_buffer = io.StringIO()
     with file_buffer as csvfile:
         fields = ['#', 'Player', 'Role', 'Status Effects']
         for i in range(5):
-            fields.append(f'D{i}')
-            fields.append(f'N{i}')
+            fields.append(f'D{i+1}')
+            fields.append(f'N{i+1}')
         csvwriter = csv.DictWriter(csvfile, fields)
         csvwriter.writeheader()
 
         for i, user in enumerate(users):
             role = roles[i] if roles else None
+            role_str = ''
+
+            if role:
+                role_str += role.role.name
+                if role.flex_faction:
+                    role_str += f' ({role.faction_name})'
+            
             user_dict = {
                 '#': i+1,
                 'Player': str(user),
-                'Role': role.name if role else None
+                'Role': f'"{role_str}"' if role_str else None
             }
             csvwriter.writerow(user_dict)
 
@@ -208,3 +219,67 @@ def get_valid_emoji(emoji: T, client: discord.Client) -> discord.Emoji | T | Non
         return None
 
     return full_emoji.available
+
+
+async def get_faction_emote(
+        faction: str | Role | Subalignment | Faction,
+        interaction: discord.Interaction
+    ) -> discord.Emoji | str | None:
+        guild_info = get_guild_info(interaction)
+
+        if isinstance(faction, Subalignment):
+            subs_faction = interaction.client.get_subalignment_faction(faction)
+            if subs_faction:
+                forum_channel = await get_or_fetch_channel(interaction.guild, subs_faction.id)
+                sub_tag = forum_channel.get_tag(faction.id)
+                if sub_tag and sub_tag.emoji:
+                    return sub_tag.emoji
+            faction = faction.name
+
+        if isinstance(faction, Role):
+            forum_channel = await uget_or_fetch_channel(interaction.guild, faction.faction.id)
+            sub_tag = forum_channel.get_tag(faction.subalignment.id)
+            if sub_tag and sub_tag.emoji:
+                return sub_tag.emoji
+            faction = faction.name
+
+        if isinstance(faction, str) or isinstance(faction, Faction):
+            f_name = faction
+            if isinstance(faction, Faction):
+                f_name = faction.name
+
+            m_emotes = [e for e in interaction.guild.emojis if e.name.lower() == f_name.lower()]
+            if m_emotes:
+                return m_emotes[0]
+
+        if isinstance(faction, Faction):
+            fac_subs = interaction.client.get_faction_subalignments(faction)
+            forum_channel = await get_or_fetch_channel(interaction.guild, faction.id)
+            for fac_sub in fac_subs:
+                sub_tag = forum_channel.get_tag(fac_sub.id)
+                if sub_tag and sub_tag.emoji:
+                    return sub_tag.emoji
+            faction = faction.name
+
+        m_emotes = [e for e in interaction.guild.emojis if faction.lower() in e.name.lower()]
+        if m_emotes:
+            return m_emotes[0]
+
+async def format_generated_roles(roles: list, interaction: discord.Interaction) -> str:
+    roles_str_list = []
+
+    for role in roles:
+        og_role = role.role
+        faction_channel = await get_or_fetch_channel(interaction.guild, og_role.faction.id)
+        sub_tag = faction_channel.get_tag(og_role.subalignment.id)
+        fac_str = ''
+        p_fac_str = ''
+        if role.flex_faction:
+            ff_name = role.faction_name
+            fac_str = f'({ff_name}) '
+            fac_emote = await get_faction_emote(role.flex_faction, interaction)
+            p_fac_str = f'{fac_emote} ' if fac_emote else ''
+
+        roles_str_list.append(f'{p_fac_str}{sub_tag.emoji or ""} {og_role.name} {fac_str}[<#{og_role.id}>]')
+
+    return '\n'.join(roles_str_list)

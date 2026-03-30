@@ -12,6 +12,7 @@ from discord import app_commands, Member
 from discord.ext import commands
 from discord.app_commands import Transform
 from utils import GuildInfo, Faction, Role, mod_check, get_guild_info, SDGException, Subalignment, PaginatedMenu
+from utils.filter import FactionedRole
 
 import utils
 
@@ -19,7 +20,7 @@ import utils
 @dataclass(slots=True)
 class Player:
     user: discord.User
-    role: Role
+    role: FactionedRole
     weight: tuple[list[Role], list[int]] | None
 
 
@@ -137,7 +138,7 @@ class MiscCog(commands.Cog):
     def assign_roles_to_players(
             self,
             players: list[discord.User | discord.Member],
-            roles: list[Role],
+            roles: list[FactionedRole],
             guild_info: GuildInfo,
             use_scrolls: bool = True,
             no_randomize: bool = False
@@ -152,10 +153,11 @@ class MiscCog(commands.Cog):
         assigned_players = []
 
         for player in players:
-            role_lots = self.generate_lots(player, roles, guild_info, use_scrolls)
+            raw_roles = [r.role for r in roles]
+            role_lots = self.generate_lots(player, raw_roles, guild_info, use_scrolls)
 
             chosen_role = random.choices(roles, weights=role_lots)[0]
-            tup = roles.copy(), role_lots
+            tup = raw_roles.copy(), role_lots
             gen_player = Player(player, chosen_role, tup)
             roles.remove(chosen_role)
 
@@ -465,10 +467,28 @@ class MiscCog(commands.Cog):
         settings = guild_info.guild_settings
 
         generated_roles = []
-        for channel_id in roles_message.raw_channel_mentions:
-            for role_ in guild_info.roles:
-                if role_.id == channel_id:
-                    generated_roles.append(role_)
+        channel_mention_regex = r'<#(\d+)>'
+
+        if roles_message:
+            for line in roles_message.content.splitlines():
+                channel_match = re.search(channel_mention_regex, line)
+                if not channel_match:
+                    continue
+
+                channel_id = int(channel_match.group(1))
+                channel_role = guild_info.get_role(channel_id)
+
+                if not channel_role:
+                    continue
+
+                f_faction_m = re.findall(r'\((.*?)\)', line)
+                if not f_faction_m:
+                    generated_roles.append(FactionedRole(channel_role, None))
+                    continue
+                
+                f_faction_m = f_faction_m[0]
+                f_faction = utils.get_flex_faction(f_faction_m, guild_info)
+                generated_roles.append(FactionedRole(channel_role, f_faction))
 
         message_mentions = []
         for mention in raw_message_mentions:
@@ -507,7 +527,21 @@ class MiscCog(commands.Cog):
                     sorted_players.append(player)
                     break
 
-        role_str = '\n'.join(f'{p.user.mention} - {p.role.name} (<#{p.role.id}>)' for p in sorted_players)
+        role_str_l = []
+        for player in sorted_players:
+            og_role = player.role.role
+            f_str = ''
+            if player.role.flex_faction:
+                f_f_emoji = await utils.get_faction_emote(player.role.flex_faction, interaction)
+                f_str = f'({f_f_emoji} {player.role.faction_name}) '
+
+            faction_channel = await utils.get_or_fetch_channel(interaction.guild, og_role.faction.id)
+            sub_tag = faction_channel.get_tag(og_role.subalignment.id)
+            sub_tag_e = f'{sub_tag.emoji} ' if sub_tag.emoji else ''
+
+            role_str_l.append(f'{player.user.mention} - {sub_tag_e}{og_role.name} {f_str}<#{og_role.id}>')
+
+        role_str = '\n'.join(role_str_l)
 
         distributed_users = [p.user for p in sorted_players]
         distributed_roles = [p.role for p in sorted_players]
@@ -605,11 +639,29 @@ class MiscCog(commands.Cog):
         raw_message_mentions: list[int] = mentions_message.raw_mentions
 
         generated_roles = []
+
+        channel_mention_regex = r'<#(\d+)>'
+
         if roles_message:
-            for channel_id in roles_message.raw_channel_mentions:
-                for role_ in guild_info.roles:
-                    if role_.id == channel_id:
-                        generated_roles.append(role_)
+            for line in roles_message.content.splitlines():
+                channel_match = re.search(channel_mention_regex, line)
+                if not channel_match:
+                    continue
+
+                channel_id = int(channel_match.group(1))
+                channel_role = guild_info.get_role(channel_id)
+
+                if not channel_role:
+                    continue
+
+                f_faction_m = re.findall(r'\((.*?)\)', line)
+                if not f_faction_m:
+                    generated_roles.append(FactionedRole(channel_role, None))
+                    continue
+                
+                f_faction_m = f_faction_m[0]
+                f_faction = utils.get_flex_faction(f_faction_m, guild_info)
+                generated_roles.append(FactionedRole(channel_role, f_faction))
 
         message_mentions = []
         for mention in raw_message_mentions:
@@ -671,7 +723,17 @@ class MiscCog(commands.Cog):
                 player = [p for p in distributed_players if p.user == member][0]
                 random_role = player.role
                 message_to_send = message_to_send.strip()
-                message_to_send += f'\n\n**You are the {random_role.name} (<#{random_role.id}>)**'
+                faction_info_str = ''
+                if random_role.flex_faction:
+                    f_f_name = random_role.faction_name
+                    f_f_emoji = await utils.get_faction_emote(random_role.flex_faction, interaction)
+                    faction_info_str = f'({f_f_emoji} {f_f_name}) '
+
+                faction_channel = await utils.get_or_fetch_channel(interaction.guild, random_role.role.faction.id)
+                sub_tag = faction_channel.get_tag(random_role.role.subalignment.id)
+                sub_tag_e = f'{sub_tag.emoji} ' if sub_tag.emoji else ''
+
+                message_to_send += f'\n\n**You are the ||{sub_tag_e}{random_role.role.name} {faction_info_str}[<#{random_role.role.id}>]||**'
 
             await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
             await thread.leave()
@@ -705,6 +767,7 @@ class MiscCog(commands.Cog):
     @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
     @app_commands.describe(role_to_replace='The role that will be replaced')
     @app_commands.describe(role_to_replace_with='The role to replace with')
+    @app_commands.describe(keep_original_faction='Whether to keep the original role\'s faction, Defaults to True')
     @app_commands.describe(limit='Limit how many roles can be replaced, defaults to unlimited')
     @app_commands.describe(delete_original='Whether to delete the original message (trust required), defaults to False')
     async def replace_roles_cmd(
@@ -713,6 +776,7 @@ class MiscCog(commands.Cog):
         roles_message: Transform[discord.Message, utils.MessageTransformer],
         role_to_replace: Transform[Role, utils.RoleTransformer],
         role_to_replace_with: Transform[Role, utils.RoleTransformer],
+        keep_original_faction: bool = True,
         limit: discord.app_commands.Range[int, 1, 30] = 999,
         delete_original: bool = False
     ):
@@ -743,23 +807,29 @@ class MiscCog(commands.Cog):
             if not channel_role:
                 continue
 
+            f_faction_m = re.findall(r'\((.*?)\)', line)
+            f_faction = None
+            if not f_faction_m:
+                factioned_role = FactionedRole(channel_role, None)
+            else:
+                f_faction_m = f_faction_m[0]
+                f_faction = utils.get_flex_faction(f_faction_m, guild_info)
+
+                factioned_role = FactionedRole(channel_role, f_faction)
+
             if limit > 0 and channel_role.id == role_to_replace.id:
-                new_roles.append(role_to_replace_with)
+                new_fac = None
+                if keep_original_faction:
+                    new_fac = f_faction
+                new_roles.append(FactionedRole(role_to_replace_with, new_fac))
                 limit -= 1
             else:
-                new_roles.append(channel_role)
+                new_roles.append(factioned_role)
         
         if not new_roles:
             raise SDGException('Message has no roles')
 
-        roles_str_list = []
-
-        for role in new_roles:
-            faction_channel = await utils.get_or_fetch_channel(interaction.guild, role.faction.id)
-            sub_tag = faction_channel.get_tag(role.subalignment.id)
-            roles_str_list.append(f'{sub_tag.emoji} {role.name} (<#{role.id}>)')
-
-        roles_str = '\n'.join(roles_str_list)
+        roles_str = await utils.format_generated_roles(new_roles, interaction)
 
         await interaction.response.send_message(content=roles_str)
 
