@@ -1,5 +1,7 @@
 import io
 import csv
+import re
+
 from datetime import datetime
 from typing import TYPE_CHECKING, TypeVar
 
@@ -7,6 +9,7 @@ import discord
 from discord import Embed, User, Member
 
 from utils.classes import Role, Subalignment, Faction
+from utils.filter import FactionedRole, get_flex_faction
 
 if TYPE_CHECKING:
     import utils
@@ -26,7 +29,8 @@ __all__ = [
     'generate_gamestate_csv',
     'get_valid_emoji',
     'get_faction_emote',
-    'format_generated_roles'
+    'format_generated_roles',
+    'message_text_to_roles'
 ]
 
 T = TypeVar('T')
@@ -237,7 +241,7 @@ async def get_faction_emote(
             faction = faction.name
 
         if isinstance(faction, Role):
-            forum_channel = await uget_or_fetch_channel(interaction.guild, faction.faction.id)
+            forum_channel = await get_or_fetch_channel(interaction.guild, faction.faction.id)
             sub_tag = forum_channel.get_tag(faction.subalignment.id)
             if sub_tag and sub_tag.emoji:
                 return sub_tag.emoji
@@ -265,13 +269,14 @@ async def get_faction_emote(
         if m_emotes:
             return m_emotes[0]
 
+        return None
+
 async def format_generated_roles(roles: list, interaction: discord.Interaction) -> str:
     roles_str_list = []
 
     for role in roles:
         og_role = role.role
-        faction_channel = await get_or_fetch_channel(interaction.guild, og_role.faction.id)
-        sub_tag = faction_channel.get_tag(og_role.subalignment.id)
+        role_emoji = await get_faction_emote(og_role, interaction) or ''
         fac_str = ''
         p_fac_str = ''
         if role.flex_faction:
@@ -280,6 +285,31 @@ async def format_generated_roles(roles: list, interaction: discord.Interaction) 
             fac_emote = await get_faction_emote(role.flex_faction, interaction)
             p_fac_str = f'{fac_emote} ' if fac_emote else ''
 
-        roles_str_list.append(f'{p_fac_str}{sub_tag.emoji or ""} {og_role.name} {fac_str}[<#{og_role.id}>]')
+        roles_str_list.append(f'{p_fac_str}{role_emoji} {og_role.name} {fac_str}[<#{og_role.id}>]')
 
     return '\n'.join(roles_str_list)
+
+def message_text_to_roles(msg_text: str, guild_info: 'utils.GuildInfo') -> list[FactionedRole]:
+    generated_roles = []
+
+    for line in msg_text.splitlines():
+        channel_match = re.search(r'<#(\d+)>', line)
+        if not channel_match:
+            continue
+
+        channel_id = int(channel_match.group(1))
+        channel_role = guild_info.get_role(channel_id)
+
+        if not channel_role:
+            continue
+
+        f_faction_m = re.findall(r'\((.*?)\)', line)
+        if not f_faction_m:
+            generated_roles.append(FactionedRole(channel_role, None))
+            continue
+        
+        f_faction_m = f_faction_m[0]
+        f_faction = get_flex_faction(f_faction_m, guild_info)
+        generated_roles.append(FactionedRole(channel_role, f_faction))
+
+    return generated_roles

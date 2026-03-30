@@ -466,29 +466,7 @@ class MiscCog(commands.Cog):
         raw_message_mentions: list[int] = mentions_message.raw_mentions
         settings = guild_info.guild_settings
 
-        generated_roles = []
-        channel_mention_regex = r'<#(\d+)>'
-
-        if roles_message:
-            for line in roles_message.content.splitlines():
-                channel_match = re.search(channel_mention_regex, line)
-                if not channel_match:
-                    continue
-
-                channel_id = int(channel_match.group(1))
-                channel_role = guild_info.get_role(channel_id)
-
-                if not channel_role:
-                    continue
-
-                f_faction_m = re.findall(r'\((.*?)\)', line)
-                if not f_faction_m:
-                    generated_roles.append(FactionedRole(channel_role, None))
-                    continue
-                
-                f_faction_m = f_faction_m[0]
-                f_faction = utils.get_flex_faction(f_faction_m, guild_info)
-                generated_roles.append(FactionedRole(channel_role, f_faction))
+        generated_roles = utils.message_text_to_roles(roles_message.content, guild_info) if roles_message else []
 
         message_mentions = []
         for mention in raw_message_mentions:
@@ -535,11 +513,10 @@ class MiscCog(commands.Cog):
                 f_f_emoji = await utils.get_faction_emote(player.role.flex_faction, interaction)
                 f_str = f'({f_f_emoji} {player.role.faction_name}) '
 
-            faction_channel = await utils.get_or_fetch_channel(interaction.guild, og_role.faction.id)
-            sub_tag = faction_channel.get_tag(og_role.subalignment.id)
-            sub_tag_e = f'{sub_tag.emoji} ' if sub_tag.emoji else ''
+            role_emoji = await utils.get_faction_emote(og_role, interaction)
+            role_emoji_t = f'{role_emoji} ' if role_emoji else ''
 
-            role_str_l.append(f'{player.user.mention} - {sub_tag_e}{og_role.name} {f_str}<#{og_role.id}>')
+            role_str_l.append(f'{player.user.mention} - {role_emoji_t}{og_role.name} {f_str}[<#{og_role.id}>]')
 
         role_str = '\n'.join(role_str_l)
 
@@ -638,30 +615,7 @@ class MiscCog(commands.Cog):
         guild_info: utils.GuildInfo = get_guild_info(interaction)
         raw_message_mentions: list[int] = mentions_message.raw_mentions
 
-        generated_roles = []
-
-        channel_mention_regex = r'<#(\d+)>'
-
-        if roles_message:
-            for line in roles_message.content.splitlines():
-                channel_match = re.search(channel_mention_regex, line)
-                if not channel_match:
-                    continue
-
-                channel_id = int(channel_match.group(1))
-                channel_role = guild_info.get_role(channel_id)
-
-                if not channel_role:
-                    continue
-
-                f_faction_m = re.findall(r'\((.*?)\)', line)
-                if not f_faction_m:
-                    generated_roles.append(FactionedRole(channel_role, None))
-                    continue
-                
-                f_faction_m = f_faction_m[0]
-                f_faction = utils.get_flex_faction(f_faction_m, guild_info)
-                generated_roles.append(FactionedRole(channel_role, f_faction))
+        generated_roles = utils.message_text_to_roles(roles_message.content, guild_info) if roles_message else []
 
         message_mentions = []
         for mention in raw_message_mentions:
@@ -730,10 +684,10 @@ class MiscCog(commands.Cog):
                     faction_info_str = f'({f_f_emoji} {f_f_name}) '
 
                 faction_channel = await utils.get_or_fetch_channel(interaction.guild, random_role.role.faction.id)
-                sub_tag = faction_channel.get_tag(random_role.role.subalignment.id)
-                sub_tag_e = f'{sub_tag.emoji} ' if sub_tag.emoji else ''
+                role_emoji = await utils.get_faction_emote(random_role.role, interaction)
+                role_emoji_t = f'{role_emoji} ' if role_emoji else ''
 
-                message_to_send += f'\n\n**You are the ||{sub_tag_e}{random_role.role.name} {faction_info_str}[<#{random_role.role.id}>]||**'
+                message_to_send += f'\n\n**You are the ||{role_emoji_t}{random_role.role.name} {faction_info_str}[<#{random_role.role.id}>]||**'
 
             await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
             await thread.leave()
@@ -793,38 +747,17 @@ class MiscCog(commands.Cog):
         message_lines = roles_message.content.splitlines()
         new_roles = []
 
-        channel_mention_regex = r'<#(\d+)>'
+        generated_roles = utils.message_text_to_roles(roles_message.content, guild_info)
 
-        for line in message_lines:
-            channel_match = re.search(channel_mention_regex, line)
-
-            if not channel_match:
-                continue
-
-            channel_id = int(channel_match.group(1))
-            channel_role = guild_info.get_role(channel_id)
-
-            if not channel_role:
-                continue
-
-            f_faction_m = re.findall(r'\((.*?)\)', line)
-            f_faction = None
-            if not f_faction_m:
-                factioned_role = FactionedRole(channel_role, None)
-            else:
-                f_faction_m = f_faction_m[0]
-                f_faction = utils.get_flex_faction(f_faction_m, guild_info)
-
-                factioned_role = FactionedRole(channel_role, f_faction)
-
-            if limit > 0 and channel_role.id == role_to_replace.id:
+        for g_role in generated_roles:
+            if limit > 0 and g_role.id == role_to_replace.id:
                 new_fac = None
                 if keep_original_faction:
-                    new_fac = f_faction
+                    new_fac = g_role.flex_faction
                 new_roles.append(FactionedRole(role_to_replace_with, new_fac))
                 limit -= 1
             else:
-                new_roles.append(factioned_role)
+                new_roles.append(g_role)
         
         if not new_roles:
             raise SDGException('Message has no roles')

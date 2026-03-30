@@ -63,6 +63,14 @@ class FactionedRole:
 
         return self.flex_faction.name
 
+    @property
+    def name(self) -> str:
+        return self.role.name
+
+    @property
+    def id(self) -> int:
+        return self.role.id
+
     def __post_init__(self):
         if self.is_role_in_flex_faction():
             self.flex_faction = None
