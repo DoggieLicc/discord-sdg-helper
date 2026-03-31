@@ -4,11 +4,10 @@ import random
 import copy
 import re
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
-from utils.classes import Role, Subalignment, Faction, SDGException
-
+from utils.classes import Role, Subalignment, Faction, SDGException, GuildInfo
 
 __all__ = [
     'generate_rolelist_roles',
@@ -52,6 +51,7 @@ class FactionedPartialRole:
 class FactionedRole:
     role: Role
     flex_faction: None | str | Role | Subalignment | Faction = None
+    marks: list[str] = field(default_factory=list)
 
     @property
     def faction_name(self) -> str | None:
@@ -70,6 +70,13 @@ class FactionedRole:
     @property
     def id(self) -> int:
         return self.role.id
+
+    @property
+    def alignment(self) -> str | Role | Subalignment | Faction:
+        if self.flex_faction:
+            return self.flex_faction
+
+        return self.role.faction
 
     def __post_init__(self):
         if self.is_role_in_flex_faction():
@@ -91,7 +98,7 @@ class FactionedRole:
         if isinstance(self.flex_faction, Faction):
             return self.role.faction.id == self.flex_faction.id
 
-        return False 
+        return False
 
 @dataclass(slots=True)
 class Filter(ABC):
@@ -301,6 +308,35 @@ class WeightMultiplier(WeightChanger):
     def get_weight(self, prev_weight: int):
         return prev_weight * self.argument
 
+@dataclass(slots=True)
+class Marker:
+    name: str
+    amount: int
+    valid_roles: set[PartialRole] | None
+    valid_factions: list[str, Role, Subalignment, Faction] | None
+
+    def is_role_markable(self, role: FactionedRole) -> bool:
+        if self.amount <= 0:
+            return False
+
+        if self.name in role.marks:
+            return False
+
+        if not self.valid_roles and not self.valid_factions:
+            return True
+
+        if self.valid_factions and role.alignment not in self.valid_factions:
+            return False
+
+        if self.valid_roles and PartialRole.from_role(role.role) not in self.valid_roles:
+            return False
+
+        return True
+
+    def mark_role(self, role: FactionedRole) -> None:   # Modifies role.marks inplace
+        role.marks.append(self.name)
+        self.amount -= 1
+
 
 @dataclass(slots=True)
 class Slot:
@@ -329,7 +365,7 @@ class MultiSlot:
         self.slots.remove(slot)
 
         return slot
-        
+
 
 @dataclass(slots=True)
 class Rolelist:
@@ -337,6 +373,7 @@ class Rolelist:
     global_filters: list[Filter]
     modifiers: list[Modifier]
     weight_changers: list[WeightChanger]
+    markers: list[Marker]
 
 
 filter_dict = {
@@ -488,8 +525,45 @@ def get_str_modifier(modifier_str: str, all_roles: set[PartialRole]) -> Modifier
     raise SDGException(f'Invalid modifier: {modifier_str}')
 
 
-def get_weight_chnager(in_str, all_roles: set[PartialRole]) -> WeightChanger:
+def get_marker(in_str, all_roles: set[PartialRole], guild_info: GuildInfo) -> Marker:
     arguments = in_str.split(':')
+
+    if not arguments:
+        raise SDGException('No arguments provided in marker')
+
+    marker_name = arguments[0].strip()
+    roles = None
+    alignments = []
+
+    roles_str = arguments[1].lower().strip() if len(arguments) >= 2 else None
+    alignments_str = arguments[2].strip() if len(arguments) >= 3 else None
+    amount = int(arguments[3].strip()) if len(arguments) >= 4 else 1
+
+    if roles_str and not roles_str == 'any':
+        filters = get_str_filters(roles_str).filters
+        roles = process_filters(all_roles, filters)
+
+        if not roles:
+            raise SDGException(f'No roles for {roles_str} in *{in_str}')
+
+    if alignments_str and not alignments_str.lower() == 'any':
+        alignments_str_l = alignments_str.split('|')
+        for align_s in alignments_str_l:
+            align_s = align_s.strip()
+            alignments.append(get_flex_faction(align_s, guild_info))
+
+    return Marker(marker_name, amount, roles, alignments)
+
+
+def get_weight_changer(in_str, all_roles: set[PartialRole]) -> WeightChanger:
+    arguments = in_str.split(':')
+
+    if not arguments:
+        raise SDGException('No arguments provided in weight mod')
+
+    if len(arguments) == 1:
+        raise SDGException(f'Too few arguments provided for ={in_str}')
+
     parameter = arguments[1].lower().strip()
     symbol = parameter[0]
     number = int(parameter[1:])
@@ -595,6 +669,7 @@ def get_rolelist(message_str: str, guild_info: GuildInfo) -> Rolelist:
     slots = []
     modifiers = []
     weights = []
+    markers = []
     partial_roles = {PartialRole.from_role(r) for r in all_roles}
 
     for line in message_lines:
@@ -612,13 +687,23 @@ def get_rolelist(message_str: str, guild_info: GuildInfo) -> Rolelist:
             continue
         if line.startswith('='):
             weight_str = line[1:]
-            weights.append(get_weight_chnager(weight_str, partial_roles))
+            weights.append(get_weight_changer(weight_str, partial_roles))
+            continue
+        if line.startswith('*'):
+            marker_str = line[1:]
+            markers.append(get_marker(marker_str, partial_roles, guild_info))
             continue
 
         slot = get_slots_from_line(line, guild_info)
         slots.append(slot)
 
-    return Rolelist(slots=slots, global_filters=global_filters, modifiers=modifiers, weight_changers=weights)
+    return Rolelist(
+        slots=slots,
+        global_filters=global_filters,
+        modifiers=modifiers,
+        weight_changers=weights,
+        markers=markers
+    )
 
 
 def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[FactionedRole]:
@@ -627,9 +712,9 @@ def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[
     weight_changers = rolelist.weight_changers
     partial_roles = {PartialRole.from_role(r) for r in full_roles}
 
-    slots_copy = copy.deepcopy(rolelist.slots)
+    rolelist = copy.deepcopy(rolelist)
 
-    for u_slot in slots_copy:
+    for u_slot in rolelist.slots:
         if isinstance(u_slot, MultiSlot):
             slot = u_slot.pop_random_weighted_slot(partial_roles, weight_changers)
         else:
@@ -674,5 +759,14 @@ def generate_rolelist_roles(rolelist: Rolelist, full_roles: list[Role]) -> list[
         p_roles.append(fp_role.role)
 
     refull_roles = [FactionedRole(r.role.to_role(full_roles), r.flex_faction) for r in roles]
+
+    for marker in rolelist.markers:
+        while marker.amount > 0:
+            markable_roles = [r for r in refull_roles if marker.is_role_markable(r)]
+            if not markable_roles:
+                break
+
+            random_markable = random.choice(markable_roles)
+            marker.mark_role(random_markable)
 
     return refull_roles

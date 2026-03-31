@@ -1,6 +1,5 @@
 import random
 import typing
-import re
 
 from dataclasses import dataclass
 from abc import abstractmethod
@@ -516,7 +515,11 @@ class MiscCog(commands.Cog):
             role_emoji = await utils.get_faction_emote(og_role, interaction)
             role_emoji_t = f'{role_emoji} ' if role_emoji else ''
 
-            role_str_l.append(f'{player.user.mention} - {role_emoji_t}{og_role.name} {f_str}[<#{og_role.id}>]')
+            m_str = ''
+            if player.role.marks:
+                m_str = '{' + ', '.join(player.role.marks) + '} '
+
+            role_str_l.append(f'{player.user.mention} - {role_emoji_t}{og_role.name} {f_str}{m_str}[<#{og_role.id}>]')
 
         role_str = '\n'.join(role_str_l)
 
@@ -641,6 +644,7 @@ class MiscCog(commands.Cog):
 
         fake_message = utils.FakeMessage(interaction.guild, thread_name)
         thread_name = fake_message.clean_content
+        role_str = ''
 
         distributed_players = []
         distributed_users = None
@@ -664,6 +668,27 @@ class MiscCog(commands.Cog):
             distributed_users = [p.user for p in sorted_players]
             distributed_roles = [p.role for p in sorted_players]
 
+            role_str_l = []
+            for player in sorted_players:
+                og_role = player.role.role
+                f_str = ''
+                if player.role.flex_faction:
+                    f_f_emoji = await utils.get_faction_emote(player.role.flex_faction, interaction)
+                    f_str = f'({f_f_emoji} {player.role.faction_name}) '
+
+                role_emoji = await utils.get_faction_emote(og_role, interaction)
+                role_emoji_t = f'{role_emoji} ' if role_emoji else ''
+
+                m_str = ''
+                if player.role.marks:
+                    m_str = '{' + ', '.join(player.role.marks) + '} '
+
+                role_str_l.append(
+                    f'{player.user.mention} - {role_emoji_t}{og_role.name} {f_str}{m_str}[<#{og_role.id}>]'
+                )
+
+            role_str = '\n\n' + '\n'.join(role_str_l)
+
         for member in message_mentions:
             thread = await interaction.channel.create_thread(
                 name=f'{member} {thread_name}',
@@ -683,11 +708,11 @@ class MiscCog(commands.Cog):
                     f_f_emoji = await utils.get_faction_emote(random_role.flex_faction, interaction)
                     faction_info_str = f'({f_f_emoji} {f_f_name}) '
 
-                faction_channel = await utils.get_or_fetch_channel(interaction.guild, random_role.role.faction.id)
                 role_emoji = await utils.get_faction_emote(random_role.role, interaction)
                 role_emoji_t = f'{role_emoji} ' if role_emoji else ''
 
-                message_to_send += f'\n\n**You are the ||{role_emoji_t}{random_role.role.name} {faction_info_str}[<#{random_role.role.id}>]||**'
+                message_to_send += f'\n\n**You are the ||{role_emoji_t}{random_role.role.name} '\
+                                   f'{faction_info_str}[<#{random_role.role.id}>]||**'
 
             await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
             await thread.leave()
@@ -695,7 +720,7 @@ class MiscCog(commands.Cog):
         embed = utils.create_embed(
             interaction.user,
             title='Threads created!',
-            description=f'Generated {len(message_mentions)} private threads'
+            description=f'Generated {len(message_mentions)} private threads{role_str}'
         )
 
         view = utils.GenerateCSVView(interaction.user, distributed_users or message_mentions, distributed_roles)
@@ -744,7 +769,6 @@ class MiscCog(commands.Cog):
 
         guild_info: GuildInfo = get_guild_info(interaction)
 
-        message_lines = roles_message.content.splitlines()
         new_roles = []
 
         generated_roles = utils.message_text_to_roles(roles_message.content, guild_info)
@@ -758,7 +782,7 @@ class MiscCog(commands.Cog):
                 limit -= 1
             else:
                 new_roles.append(g_role)
-        
+
         if not new_roles:
             raise SDGException('Message has no roles')
 
@@ -769,13 +793,15 @@ class MiscCog(commands.Cog):
         if delete_original:
             try:
                 await roles_message.delete()
-            except Exception:
+            except discord.DiscordException:
                 pass
 
     @app_commands.guild_only()
     @app_commands.command(name='stealemote')
     @app_commands.checks.bot_has_permissions(create_expressions=True)
-    @app_commands.describe(emote='The emote to add. The easiest way to obtain it without nitro is by using the "Copy Text" button')
+    @app_commands.describe(
+        emote='The emote to add. The easiest way to obtain it without nitro is by using the "Copy Text" button'
+    )
     @app_commands.describe(name='The name to add the emote as, if not specified will use the original emote\'s name')
     async def steal_emote(
         self,
