@@ -78,24 +78,15 @@ class InfotagCog(commands.GroupCog, group_name='infotag'):
             ephemeral: bool = False
     ):
         """View an infotag"""
-        info_cat_channel = await utils.get_or_fetch_channel(interaction.guild, info_category.id)
-        info_tag_thread = info_cat_channel.get_thread(info_tag.id)
+        guild_info = utils.get_guild_info(interaction)
 
-        if not info_tag_thread:
-            await self.client.add_archived_threads(info_cat_channel, force=True)
-            info_tag_thread = info_cat_channel.get_thread(info_tag.id)
+        embed = await utils.role_or_infotag_to_embed(interaction, info_tag)
+        keywords = utils.KeywordView.get_keywords(embed.description, guild_info, info_tag)
+        view = discord.utils.MISSING
+        if keywords:
+            view = utils.KeywordView(interaction.user, guild_info, info_tag, keywords)
 
-        info_tag_msg = info_tag_thread.starter_message or await info_tag_thread.fetch_message(info_tag_thread.id)
-        message_image = info_tag_msg.attachments[0] if info_tag_msg.attachments else None
-
-        embed = utils.create_embed(
-            interaction.user,
-            title=f'Infotag {info_category.name}:{info_tag.name}',
-            thumbnail=message_image,
-            description=f'{info_tag_thread.mention}\n\n' + info_tag_msg.content
-        )
-
-        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral, view=view)
 
 
 async def setup(bot):

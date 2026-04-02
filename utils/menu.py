@@ -1,3 +1,5 @@
+import re
+
 from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 from collections import Counter
@@ -7,10 +9,11 @@ from discord import Interaction
 from discord.ui import View, Button, Item
 from discord.ext.commands import Paginator
 
-from utils.funcs import create_embed, generate_gamestate_csv, get_valid_emoji
+from utils.funcs import create_embed, generate_gamestate_csv, get_valid_emoji, role_or_infotag_to_embed, get_faction_emote
+from utils.classes import Role, InfoTag
 
 if TYPE_CHECKING:
-    from utils.classes import GuideItem
+    from utils.classes import GuideItem, GuildInfo
 
 
 __all__ = [
@@ -19,7 +22,8 @@ __all__ = [
     'PollSelectButton',
     'CustomView',
     'GenerateCSVView',
-    'GuideMenuView'
+    'GuideMenuView',
+    'KeywordView'
 ]
 
 
@@ -325,6 +329,59 @@ class GuideMenuView(CustomView):
     async def far_right(self, interaction: discord.Interaction, _: Button):
         self.guide_page = len(self.selected_guide.pages)
         await self.update_page(interaction)
+
+class KeywordButton(discord.ui.Button['KeywordView']):
+    def __init__(self, allowed_user: discord.Member, keyword: Role | InfoTag, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allowed_user = allowed_user
+        self.keyword = keyword
+
+        if isinstance(keyword, Role):
+            self.style = discord.ButtonStyle.success
+        else:
+            self.style = discord.ButtonStyle.primary
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = await role_or_infotag_to_embed(interaction, self.keyword)
+        keywords = KeywordView.get_keywords(embed.description, self.view.guild_info, self.keyword)
+        view = discord.utils.MISSING
+        if keywords:
+            view = KeywordView(interaction.user, self.view.guild_info, self.keyword, keywords)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True, view=view)
+
+class KeywordView(CustomView):
+    def __init__(self, owner: discord.User, guild_info: 'GuildInfo', obj: None | Role | InfoTag, keywords):
+        super().__init__(owner=owner)
+        self.obj = obj
+        self.guild_info = guild_info
+        self.keywords = keywords
+
+        for kw in self.keywords[:25]:
+            self.add_item(KeywordButton(owner, kw, label=kw.name))
+
+    async def interaction_check(self, interaction: Interaction, /) -> bool:
+        return True
+
+    @staticmethod
+    def get_keywords(text: str, guild_info: 'GuildInfo', itself: None | Role | InfoTag) -> list[Role | InfoTag]:
+        kw_matches = re.findall(r'\*\*(.*?)\*\*', text)
+        keywords = []
+
+        for kw_match in kw_matches:
+            kw_match: str = kw_match.lower().strip(' \n*')
+            for infotag in guild_info.info_tags:
+                if infotag != itself and infotag not in keywords:
+                    if kw_match.startswith(infotag.name.lower().removesuffix('y')):
+                        keywords.append(infotag)
+
+            for role in guild_info.roles:
+                if role != itself and role not in keywords:
+                    if kw_match.startswith(role.name.lower().removesuffix('y')):
+                        keywords.append(role)
+
+        return keywords
+
 
 def format_option_value(value: str, all_options: list[discord.SelectOption], client: discord.Client) -> str:
     option = [o for o in all_options if o.value == value][0]

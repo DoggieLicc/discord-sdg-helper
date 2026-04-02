@@ -177,43 +177,15 @@ class MiscCog(commands.Cog):
             ephemeral: bool = False
     ):
         """Get info on a role"""
-        thread_channel = await utils.get_or_fetch_channel(interaction.guild, role.id)
-        starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
-        role_str = starter_message.content
-        message_image = starter_message.attachments[0] if starter_message.attachments else None
-        forum_channel = thread_channel.parent or await interaction.guild.fetch_channel(thread_channel.parent_id)
+        guild_info: GuildInfo = get_guild_info(interaction)
 
-        reaction_str = ''
+        embed = await utils.role_or_infotag_to_embed(interaction, role)
+        keywords = utils.KeywordView.get_keywords(embed.description, guild_info, role)
+        view = discord.utils.MISSING
+        if keywords:
+            view = utils.KeywordView(interaction.user, guild_info, role, keywords)
 
-        if forum_channel.default_reaction_emoji:
-            emoji_ = forum_channel.default_reaction_emoji
-            reaction = None
-
-            for react in starter_message.reactions:
-                if isinstance(react.emoji, str):
-                    if react.emoji == str(emoji_):
-                        reaction = react
-                        break
-                    continue
-
-                if str(react.emoji) == str(emoji_) or react.emoji.id == emoji_.id:
-                    reaction = react
-                    break
-
-            if reaction:
-                num_reactions = reaction.normal_count
-
-                reaction_str = f' | {num_reactions} {emoji_}'
-
-        embed = utils.create_embed(
-            interaction.user,
-            title=f'{role.name}',
-            thumbnail=message_image,
-            description=f'Post: {thread_channel.mention}{reaction_str}\n\n'
-                        f'{role_str[:4000]}'
-        )
-
-        await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
+        await interaction.response.send_message(embed=embed, ephemeral=ephemeral, view=view)
 
     @app_commands.command(name='maintenance')
     @app_commands.guild_only()
@@ -697,6 +669,7 @@ class MiscCog(commands.Cog):
             )
 
             message_to_send = member.mention + ' ' + interaction.user.mention + '\n\n' + additional_message
+            view = discord.utils.MISSING
 
             if distributed_players:
                 player = [p for p in distributed_players if p.user == member][0]
@@ -711,10 +684,13 @@ class MiscCog(commands.Cog):
                 role_emoji = await utils.get_faction_emote(random_role.role, interaction)
                 role_emoji_t = f'{role_emoji} ' if role_emoji else ''
 
+                view = utils.KeywordView(player.user, guild_info, None, [random_role.role])
+                view.children[0].label = 'Role card'
+
                 message_to_send += f'\n\n**You are the ||{role_emoji_t}{random_role.role.name} '\
                                    f'{faction_info_str}[<#{random_role.role.id}>]||**'
 
-            await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all())
+            await thread.send(message_to_send, allowed_mentions=discord.AllowedMentions.all(), view=view)
             await thread.leave()
 
         embed = utils.create_embed(

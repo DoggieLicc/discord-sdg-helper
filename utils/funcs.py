@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, TypeVar
 import discord
 from discord import Embed, User, Member
 
-from utils.classes import Role, Subalignment, Faction
+from utils.classes import Role, Subalignment, Faction, InfoTag
 from utils.filter import FactionedRole, get_flex_faction
 
 if TYPE_CHECKING:
@@ -30,7 +30,8 @@ __all__ = [
     'get_valid_emoji',
     'get_faction_emote',
     'format_generated_roles',
-    'message_text_to_roles'
+    'message_text_to_roles',
+    'role_or_infotag_to_embed'
 ]
 
 T = TypeVar('T')
@@ -325,3 +326,46 @@ def message_text_to_roles(msg_text: str, guild_info: 'utils.GuildInfo') -> list[
         generated_roles.append(FactionedRole(channel_role, f_faction, marks))
 
     return generated_roles
+
+async def role_or_infotag_to_embed(interaction: discord.Integration, keyword) -> discord.Embed:
+    thread_channel = await get_or_fetch_channel(interaction.guild, keyword.id)
+    starter_message = thread_channel.starter_message or await thread_channel.fetch_message(thread_channel.id)
+    kw_str = starter_message.content
+    message_image = starter_message.attachments[0] if starter_message.attachments else None
+    forum_channel = thread_channel.parent or await interaction.guild.fetch_channel(thread_channel.parent_id)
+
+    reaction_str = ''
+
+    if forum_channel.default_reaction_emoji:
+        emoji_ = forum_channel.default_reaction_emoji
+        reaction = None
+
+        for react in starter_message.reactions:
+            if isinstance(react.emoji, str):
+                if react.emoji == str(emoji_):
+                    reaction = react
+                    break
+                continue
+
+            if str(react.emoji) == str(emoji_) or react.emoji.id == emoji_.id:
+                reaction = react
+                break
+
+        if reaction:
+            num_reactions = reaction.normal_count
+
+            reaction_str = f' | {num_reactions} {emoji_}'
+
+    header = f'Post: {thread_channel.mention}{reaction_str}\n\n'
+    title = keyword.name
+    if isinstance(keyword, InfoTag):
+        title = f'Infotag {keyword.info_category.name}:{keyword.name}'
+
+    embed = create_embed(
+        interaction.user,
+        title=title,
+        thumbnail=message_image,
+        description=header + kw_str[:4000]
+    )
+
+    return embed
