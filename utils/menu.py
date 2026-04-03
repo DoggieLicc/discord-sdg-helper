@@ -9,7 +9,7 @@ from discord import Interaction
 from discord.ui import View, Button, Item
 from discord.ext.commands import Paginator
 
-from utils.funcs import create_embed, generate_gamestate_csv, get_valid_emoji, role_or_infotag_to_embed, get_faction_emote
+from utils.funcs import create_embed, generate_gamestate_csv, get_valid_emoji, role_or_infotag_to_embed
 from utils.classes import Role, InfoTag
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class CustomView(View):
     def __init__(self, owner: discord.User):
         self.owner = owner
         self.message = None
-        super().__init__(timeout=360)
+        super().__init__(timeout=6000)
 
     async def interaction_check(self, interaction: Interaction, /) -> bool:
         self.message = interaction.message

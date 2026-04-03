@@ -245,6 +245,8 @@ class MiscCog(commands.Cog):
     @app_commands.describe(poll_options='The comma-seperated list of options, defaults to "INNOCENT, GUILTY, ABSTAIN"')
     @app_commands.describe(whitelist='If set, only the users and roles set here will be allowed to vote')
     @app_commands.describe(blacklist='If set, the users and roles set here will not be allowed to vote')
+    @app_commands.checks.has_permissions(create_private_threads=True)
+    @app_commands.checks.bot_has_permissions(create_private_threads=True)
     @app_commands.guild_only()
     async def start_anonpoll(
             self,
@@ -719,10 +721,13 @@ class MiscCog(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=ephemeral)
 
     @app_commands.command(name='replaceroles')
+    @app_commands.guild_only()
     @app_commands.describe(roles_message='Message ID or link containing the output of "Generate Rolelist Roles"')
     @app_commands.describe(role_to_replace='The role that will be replaced')
     @app_commands.describe(role_to_replace_with='The role to replace with')
-    @app_commands.describe(keep_original_faction='Whether to keep the original role\'s faction, Defaults to True')
+    @app_commands.describe(keep_flexible_faction='Whether to keep the role\'s flexible faction, if any, Defaults to True')
+    @app_commands.describe(keep_markers='Whether to keep the role\'s markers, if any, Defaults to True')
+    @app_commands.describe(new_faction='Set a new flexible faction to the replaced role.')
     @app_commands.describe(limit='Limit how many roles can be replaced, defaults to unlimited')
     @app_commands.describe(delete_original='Whether to delete the original message (trust required), defaults to False')
     async def replace_roles_cmd(
@@ -731,7 +736,9 @@ class MiscCog(commands.Cog):
         roles_message: Transform[discord.Message, utils.MessageTransformer],
         role_to_replace: Transform[Role, utils.RoleTransformer],
         role_to_replace_with: Transform[Role, utils.RoleTransformer],
-        keep_original_faction: bool = True,
+        keep_flexible_faction: bool = True,
+        keep_markers: bool = True,
+        new_faction: str = None,
         limit: discord.app_commands.Range[int, 1, 30] = 999,
         delete_original: bool = False
     ):
@@ -748,13 +755,17 @@ class MiscCog(commands.Cog):
         new_roles = []
 
         generated_roles = utils.message_text_to_roles(roles_message.content, guild_info)
+        new_fac = utils.get_flex_faction(new_faction, guild_info) if new_faction else None
 
         for g_role in generated_roles:
             if limit > 0 and g_role.id == role_to_replace.id:
-                new_fac = None
-                if keep_original_faction:
-                    new_fac = g_role.flex_faction
-                new_roles.append(FactionedRole(role_to_replace_with, new_fac))
+                newer_fac = new_fac
+                new_marks = []
+                if keep_flexible_faction and new_fac is None:
+                    newer_fac = g_role.flex_faction
+                if keep_markers:
+                    new_marks = g_role.marks
+                new_roles.append(FactionedRole(role_to_replace_with, newer_fac, new_marks))
                 limit -= 1
             else:
                 new_roles.append(g_role)
